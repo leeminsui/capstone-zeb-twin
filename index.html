@@ -979,30 +979,48 @@ function drawRoom(){
 
   // ---- 천장 카세트 + 급기 ----
   const cool=S.mode===1, heat=S.mode===2, pcf=PC_MAX?S.pc/PC_MAX:0;
+  const on=cool||heat, col=cool?"110,185,240":"242,150,110";
   CASS.forEach(function(cz,i){
-    const cxp=mx(cz), cw=S_*1.5, chh=Math.max(6,S_*0.3);
-    rx.fillStyle="#f6f8f9"; rnd(rx,cxp-cw/2,CE,cw,chh,3); rx.fill();
-    rx.fillStyle="#9fadb6"; rnd(rx,cxp-cw*0.33,CE+chh*0.55,cw*0.66,chh*0.4,2); rx.fill();
-    rx.strokeStyle="rgba(120,132,142,.5)"; rx.lineWidth=1;
+    const cxp=mx(cz), cw=S_*1.55, chh=Math.max(7,S_*0.3);
+    rx.fillStyle="#f7f9fa"; rnd(rx,cxp-cw/2,CE,cw,chh,3); rx.fill();
+    rx.strokeStyle="rgba(120,132,142,.45)"; rx.lineWidth=1;
     rnd(rx,cxp-cw/2,CE,cw,chh,3); rx.stroke();
-    if((!cool&&!heat)||pcf<.02) return;
-    const col=cool?"120,190,240":"240,150,120";
-    for(let k=0;k<22;k++){
-      const ph=((animT*0.00016*(0.5+pcf))+k/22+i*0.13)%1, side=k%2?1:-1;
-      const px=cxp+side*(S_*0.18+ph*S_*1.9), py=CE+chh+ph*(FL-CE-chh)*0.95;
-      rx.strokeStyle="rgba("+col+","+Math.max(0,(1-ph)*0.42*(0.25+pcf))+")";
-      rx.lineWidth=Math.max(1.2,S_*0.028); rx.lineCap="round";
-      rx.beginPath(); rx.moveTo(px,py);
-      rx.lineTo(px+side*S_*0.07,py+S_*0.17); rx.stroke();
+    rx.fillStyle="#aeb8c0"; rnd(rx,cxp-cw*0.26,CE+chh*0.40,cw*0.52,chh*0.42,2); rx.fill();
+    // 좌우 토출 루버 — 운전 중에는 각도가 흔들린다
+    const sw=on?Math.sin(animT*0.0016+i)*0.22:0;
+    [-1,1].forEach(function(sd){
+      rx.save(); rx.translate(cxp+sd*cw*0.40,CE+chh*0.78); rx.rotate(sd*(0.5+sw));
+      rx.fillStyle=on?"#dfe8ee":"#c9d0d6";
+      rnd(rx,-cw*0.11,-chh*0.08,cw*0.22,chh*0.16,1.5); rx.fill(); rx.restore();
+    });
+    // 운전 표시등
+    rx.fillStyle=on?"rgba("+col+",1)":"rgba(150,158,166,.6)";
+    rx.beginPath(); rx.arc(cxp+cw*0.5-S_*0.07,CE+chh*0.5,Math.max(2,S_*0.028),0,7); rx.fill();
+    if(on){
+      rx.fillStyle="rgba("+col+","+(0.18+0.12*Math.sin(animT*0.005))+")";
+      rx.beginPath(); rx.arc(cxp+cw*0.5-S_*0.07,CE+chh*0.5,Math.max(5,S_*0.075),0,7); rx.fill();
+    }
+    if(!on||pcf<.02) return;
+    // 토출 기류 — 원뿔형으로 퍼지며 바닥 가까이에서 옆으로 번진다
+    const cg=rx.createLinearGradient(0,CE+chh,0,FL);
+    cg.addColorStop(0,"rgba("+col+","+(0.16+0.22*pcf)+")");
+    cg.addColorStop(1,"rgba("+col+",0)");
+    rx.fillStyle=cg;
+    rx.beginPath(); rx.moveTo(cxp-cw*0.4,CE+chh); rx.lineTo(cxp+cw*0.4,CE+chh);
+    rx.lineTo(cxp+S_*2.0,FL); rx.lineTo(cxp-S_*2.0,FL); rx.closePath(); rx.fill();
+    for(let k=0;k<26;k++){
+      const ph=((animT*0.00018*(0.5+pcf))+k/26+i*0.13)%1, sd=k%2?1:-1;
+      const px=cxp+sd*(S_*0.2+ph*ph*S_*2.0), py=CE+chh+ph*(FL-CE-chh)*0.97;
+      rx.strokeStyle="rgba("+col+","+Math.max(0,(1-ph*0.85)*0.5*(0.3+pcf))+")";
+      rx.lineWidth=Math.max(1.3,S_*0.03); rx.lineCap="round";
+      rx.beginPath(); rx.moveTo(px,py); rx.lineTo(px+sd*S_*0.09,py+S_*0.19); rx.stroke();
     }
   });
 
   // ---- 사람과 책상 ----
   const occ = work?1:((hr>=6&&hr<22)?0.3:0);
   SEATS.forEach(function(sz,i){
-    const bx=mx(sz);
-    if(occ>0 && hash(i+2)<occ+0.25) drawWorker(bx-S_*0.72,FL,S_,i,work);
-    drawDesk(bx,FL,S_);
+    drawStation(mx(sz),FL,S_,i, occ>0 && hash(i+2)<occ+0.25, work);
   });
   if(work) for(let k=0;k<2;k++){
     const per=52000+k*23000, ph=((animT+k*31000)%per)/per, tri=ph<.5?ph*2:(1-ph)*2;
@@ -1021,74 +1039,186 @@ function drawRoom(){
   drawComfort(w,h);
 }
 
-function drawDesk(x,y,s){
-  rx.fillStyle="rgba(40,48,58,.14)";
-  rx.beginPath(); rx.ellipse(x,y+s*0.03,s*1.05,s*0.07,0,0,7); rx.fill();
-  rx.fillStyle="#c6a884"; rnd(rx,x-s*1.0,y-s*0.74,s*2.0,s*0.09,2); rx.fill();
-  rx.fillStyle="#8d949b";
-  rx.fillRect(x-s*0.95,y-s*0.66,s*0.05,s*0.66);
-  rx.fillRect(x+s*0.90,y-s*0.66,s*0.05,s*0.66);
-  rx.fillStyle="#d6d9dc"; rnd(rx,x+s*0.28,y-s*0.63,s*0.42,s*0.63,2); rx.fill();
-  rx.fillStyle="#223040"; rnd(rx,x-s*0.52,y-s*1.14,s*0.56,s*0.36,2); rx.fill();
-  rx.fillStyle="#3c6c92"; rx.fillRect(x-s*0.49,y-s*1.11,s*0.50,s*0.30);
-  rx.fillStyle="#8d949b"; rx.fillRect(x-s*0.27,y-s*0.78,s*0.06,s*0.1);
+const SKIN =["#f2d5b8","#e6bd99","#d7a881","#c2916c"];
+const HAIR =["#2a2420","#3b2f27","#1d1a18","#584334"];
+const SHIRT=["#ffffff","#cfd9e4","#9fb3c8","#4b6381","#7d8a6f","#c3c7cb"];
+const PANTS=["#39414d","#2b323c","#4a5260","#54504a"];
+
+// 한 자리: 의자 → 사람 → 책상 → 책상 위 물건 순으로 겹친다
+function drawStation(x,y,s,seed,occupied,work){
+  const px=x-s*0.75;
+  drawChair(px,y,s,seed);
+  if(occupied) drawSeated(px,y,s,seed,work);
+  // 책상
+  rx.fillStyle="rgba(40,48,58,.13)";
+  rx.beginPath(); rx.ellipse(x,y+s*0.02,s*1.0,s*0.06,0,0,7); rx.fill();
+  rx.fillStyle="#8e949b";
+  rx.fillRect(x-s*0.86,y-s*0.72,s*0.045,s*0.72);
+  rx.fillRect(x+s*0.82,y-s*0.72,s*0.045,s*0.72);
+  rx.fillStyle="#cdb292"; rnd(rx,x-s*0.92,y-s*0.78,s*1.84,s*0.06,s*0.02); rx.fill();
+  rx.fillStyle="#b89b79"; rx.fillRect(x-s*0.92,y-s*0.722,s*1.84,s*0.012);
+  rx.fillStyle="#dadde0"; rnd(rx,x+s*0.30,y-s*0.70,s*0.40,s*0.70,s*0.02); rx.fill();
+  rx.fillStyle="#b9bec4"; rx.fillRect(x+s*0.34,y-s*0.56,s*0.32,s*0.014);
+  rx.fillRect(x+s*0.34,y-s*0.34,s*0.32,s*0.014);
+  // 노트북
+  rx.fillStyle="#b9bfc5"; rnd(rx,x-s*0.52,y-s*0.80,s*0.34,s*0.02,1); rx.fill();
+  rx.save(); rx.translate(x-s*0.52,y-s*0.80); rx.rotate(-0.28);
+  rx.fillStyle="#9aa1a8"; rnd(rx,0,-s*0.30,s*0.03,s*0.30,1); rx.fill();
+  rx.fillStyle="#1d2a36"; rnd(rx,-s*0.005,-s*0.29,s*0.028,s*0.27,1); rx.fill(); rx.restore();
+  // 모니터
+  rx.fillStyle="#8e949b"; rx.fillRect(x+s*0.08,y-s*0.86,s*0.05,s*0.08);
+  rx.fillStyle="#9aa1a8"; rnd(rx,x-s*0.02,y-s*0.80,s*0.24,s*0.025,1); rx.fill();
+  rx.fillStyle="#232e3a"; rnd(rx,x+s*0.02,y-s*1.26,s*0.17,s*0.40,s*0.015); rx.fill();
+  rx.fillStyle="#3f6b90"; rx.fillRect(x+s*0.035,y-s*1.245,s*0.14,s*0.37);
+  rx.fillStyle="rgba(255,255,255,.14)"; rx.fillRect(x+s*0.035,y-s*1.245,s*0.14,s*0.12);
+  // 머그와 서류
+  rx.fillStyle="#e8e2d8"; rnd(rx,x+s*0.44,y-s*0.80,s*0.10,s*0.12,s*0.015); rx.fill();
+  rx.strokeStyle="#e8e2d8"; rx.lineWidth=s*0.018;
+  rx.beginPath(); rx.arc(x+s*0.555,y-s*0.745,s*0.035,-1.2,1.2); rx.stroke();
+  rx.fillStyle="#f3f4f5"; rnd(rx,x+s*0.62,y-s*0.795,s*0.20,s*0.015,1); rx.fill();
 }
-function drawWorker(x,y,s,seed,work){
-  const type=work?Math.sin(animT*0.004+seed*2.3)*0.5+0.5:0, lean=work?0:0.3;
-  rx.fillStyle="#2f343b";
-  rnd(rx,x-s*0.30,y-s*0.98,s*0.10,s*0.52,3); rx.fill();
-  rnd(rx,x-s*0.34,y-s*0.50,s*0.52,s*0.08,3); rx.fill();
-  rx.fillStyle="#4a5058"; rx.fillRect(x-s*0.07,y-s*0.44,s*0.05,s*0.40);
-  rx.fillStyle="#3a4350";
-  rnd(rx,x-s*0.05,y-s*0.52,s*0.46,s*0.12,4); rx.fill();
-  rnd(rx,x+s*0.33,y-s*0.44,s*0.12,s*0.44,4); rx.fill();
-  const shirt=["#44505f","#6d7682","#8a93a0","#3b4756"][seed%4];
-  rx.fillStyle=shirt; rnd(rx,x-s*0.22,y-s*1.02,s*0.40,s*0.52,s*0.09); rx.fill();
-  rx.strokeStyle=shirt; rx.lineWidth=s*0.1; rx.lineCap="round";
-  rx.beginPath(); rx.moveTo(x+s*0.08,y-s*0.86);
-  rx.lineTo(x+s*0.46,y-s*0.74+type*s*0.03-lean*s*0.1); rx.stroke();
-  rx.fillStyle="#e3c3a2"; rx.beginPath(); rx.arc(x+s*0.02,y-s*1.17,s*0.15,0,7); rx.fill();
-  rx.fillStyle="#2b241f"; rx.beginPath();
-  rx.arc(x+s*0.02,y-s*1.20,s*0.155,Math.PI*1.05,Math.PI*2.05); rx.fill();
+
+function drawChair(x,y,s,seed){
+  rx.strokeStyle="#4d535b"; rx.lineWidth=s*0.028; rx.lineCap="round";
+  for(const d of [-0.26,-0.1,0.08,0.24]){          // 다리와 바퀴
+    rx.beginPath(); rx.moveTo(x,y-s*0.10); rx.lineTo(x+s*d,y-s*0.02); rx.stroke();
+    rx.fillStyle="#3b4149";
+    rx.beginPath(); rx.arc(x+s*d,y-s*0.015,s*0.028,0,7); rx.fill();
+  }
+  rx.fillStyle="#5a616a"; rx.fillRect(x-s*0.022,y-s*0.44,s*0.044,s*0.35);
+  rx.fillStyle="#353b43"; rnd(rx,x-s*0.20,y-s*0.48,s*0.46,s*0.055,s*0.02); rx.fill();
+  rx.save(); rx.translate(x-s*0.18,y-s*0.46); rx.rotate(0.12);
+  rx.fillStyle="#2f343c"; rnd(rx,-s*0.045,-s*0.56,s*0.085,s*0.56,s*0.03); rx.fill();
+  rx.fillStyle="rgba(255,255,255,.07)"; rnd(rx,-s*0.03,-s*0.52,s*0.055,s*0.46,s*0.02); rx.fill();
+  rx.restore();
 }
+
+function drawSeated(x,y,s,seed,work){
+  const sk=SKIN[seed%SKIN.length], hr=HAIR[(seed*3)%HAIR.length];
+  const sh=SHIRT[(seed*5)%SHIRT.length], pa=PANTS[(seed*7)%PANTS.length];
+  const bob=work?Math.sin(animT*0.0042+seed*2.3)*s*0.012:0;
+  const lean=work?s*0.02:0;
+  // 다리
+  rx.fillStyle=pa;
+  rnd(rx,x-s*0.14,y-s*0.52,s*0.44,s*0.13,s*0.05); rx.fill();
+  rnd(rx,x+s*0.19,y-s*0.50,s*0.12,s*0.44,s*0.05); rx.fill();
+  rx.fillStyle="#2b2f36";
+  rnd(rx,x+s*0.17,y-s*0.09,s*0.22,s*0.08,s*0.03); rx.fill();
+  // 상체
+  rx.save(); rx.translate(x,y); rx.rotate(-0.06);
+  rx.fillStyle=sh;
+  rnd(rx,-s*0.17+lean,-s*1.03+bob,s*0.36,s*0.54,s*0.08); rx.fill();
+  rx.fillStyle="rgba(0,0,0,.06)"; rnd(rx,-s*0.17+lean,-s*0.62+bob,s*0.36,s*0.13,s*0.05); rx.fill();
+  rx.restore();
+  // 팔 — 어깨에서 책상 위 손까지
+  rx.strokeStyle=sh; rx.lineWidth=s*0.105; rx.lineCap="round"; rx.lineJoin="round";
+  rx.beginPath();
+  rx.moveTo(x+s*0.10,y-s*0.92+bob);
+  rx.lineTo(x+s*0.27,y-s*0.80+bob);
+  rx.lineTo(x+s*0.47,y-s*0.80+bob*0.4);
+  rx.stroke();
+  rx.fillStyle=sk; rx.beginPath();
+  rx.arc(x+s*0.50,y-s*0.80+bob*0.4,s*0.045,0,7); rx.fill();
+  // 목·머리
+  rx.fillStyle=sk; rx.fillRect(x+s*0.04,y-s*1.10+bob,s*0.07,s*0.08);
+  rx.beginPath(); rx.arc(x+s*0.09,y-s*1.19+bob,s*0.105,0,7); rx.fill();
+  rx.fillStyle=hr;                                  // 머리카락 (좌석별 변형)
+  rx.beginPath();
+  rx.arc(x+s*0.085,y-s*1.205+bob,s*0.112,Math.PI*0.98,Math.PI*2.1); rx.fill();
+  if(seed%3===0){ rx.beginPath(); rx.arc(x-s*0.02,y-s*1.17+bob,s*0.055,0,7); rx.fill(); }
+  else if(seed%3===1) rx.fillRect(x-s*0.03,y-s*1.22+bob,s*0.05,s*0.14);
+}
+
 function drawWalker(x,y,s,dir,seed){
-  const st=Math.sin(animT*0.006+seed*3)*0.5;
-  rx.lineCap="round"; rx.strokeStyle="#3a4350"; rx.lineWidth=s*0.12;
-  rx.beginPath(); rx.moveTo(x,y-s*0.56); rx.lineTo(x+st*s*0.22,y); rx.stroke();
-  rx.beginPath(); rx.moveTo(x,y-s*0.56); rx.lineTo(x-st*s*0.22,y); rx.stroke();
-  const shirt=seed?"#5d6775":"#49535f";
-  rx.fillStyle=shirt; rnd(rx,x-s*0.17,y-s*1.12,s*0.34,s*0.58,s*0.08); rx.fill();
-  rx.strokeStyle=shirt; rx.lineWidth=s*0.09;
-  rx.beginPath(); rx.moveTo(x+dir*s*0.1,y-s*1.0);
-  rx.lineTo(x+dir*s*0.1-st*s*0.2,y-s*0.6); rx.stroke();
-  rx.fillStyle="#e3c3a2"; rx.beginPath(); rx.arc(x,y-s*1.27,s*0.15,0,7); rx.fill();
-  rx.fillStyle="#2b241f"; rx.beginPath();
-  rx.arc(x,y-s*1.30,s*0.155,Math.PI*1.05,Math.PI*2.05); rx.fill();
+  const st=Math.sin(animT*0.0055+seed*3)*0.55;
+  const sk=SKIN[(seed*2+1)%SKIN.length], hr=HAIR[(seed+2)%HAIR.length];
+  const sh=SHIRT[(seed*3+2)%SHIRT.length], pa=PANTS[(seed+1)%PANTS.length];
+  rx.lineCap="round"; rx.lineJoin="round";
+  rx.strokeStyle=pa; rx.lineWidth=s*0.115;          // 다리
+  rx.beginPath(); rx.moveTo(x,y-s*0.86); rx.lineTo(x+st*s*0.26,y-s*0.05); rx.stroke();
+  rx.beginPath(); rx.moveTo(x,y-s*0.86); rx.lineTo(x-st*s*0.26,y-s*0.05); rx.stroke();
+  rx.fillStyle="#2b2f36";
+  rnd(rx,x+st*s*0.26-s*0.09,y-s*0.07,s*0.2,s*0.07,s*0.03); rx.fill();
+  rnd(rx,x-st*s*0.26-s*0.11,y-s*0.07,s*0.2,s*0.07,s*0.03); rx.fill();
+  rx.fillStyle=sh; rnd(rx,x-s*0.16,y-s*1.40,s*0.33,s*0.58,s*0.08); rx.fill();
+  rx.strokeStyle=sh; rx.lineWidth=s*0.095;          // 팔
+  rx.beginPath(); rx.moveTo(x+dir*s*0.08,y-s*1.30);
+  rx.lineTo(x+dir*s*0.08-st*s*0.22,y-s*0.92); rx.stroke();
+  rx.fillStyle=sk; rx.fillRect(x-s*0.035,y-s*1.47,s*0.07,s*0.09);
+  rx.beginPath(); rx.arc(x+dir*s*0.015,y-s*1.56,s*0.105,0,7); rx.fill();
+  rx.fillStyle=hr; rx.beginPath();
+  rx.arc(x+dir*s*0.012,y-s*1.575,s*0.112,Math.PI*0.98,Math.PI*2.1); rx.fill();
+  if(seed%2){                                        // 태블릿을 든 사람
+    rx.fillStyle="#2b3a48";
+    rnd(rx,x+dir*s*0.08-st*s*0.22-s*0.07,y-s*0.98,s*0.14,s*0.18,s*0.01); rx.fill();
+  }
 }
+
 function drawPlant(x,y,s0,i){
   const s=s0*0.62;
-  rx.fillStyle="#eceef0"; rnd(rx,x-s*0.17,y-s*0.34,s*0.34,s*0.34,s*0.05); rx.fill();
+  rx.fillStyle="rgba(40,48,58,.12)";
+  rx.beginPath(); rx.ellipse(x,y+s*0.02,s*0.22,s*0.05,0,0,7); rx.fill();
+  rx.fillStyle="#edeff1"; rnd(rx,x-s*0.17,y-s*0.34,s*0.34,s*0.34,s*0.05); rx.fill();
+  rx.fillStyle="#dde0e3"; rx.fillRect(x-s*0.17,y-s*0.34,s*0.34,s*0.04);
   rx.fillStyle="#3f6b3a";
   for(let k=0;k<5;k++){
-    const a=-Math.PI/2+(k-2)*0.42+Math.sin(animT*0.0012+i+k)*0.05;
-    rx.save(); rx.translate(x,y-s*0.34); rx.rotate(a);
+    const a2=-Math.PI/2+(k-2)*0.42+Math.sin(animT*0.0012+i+k)*0.05;
+    rx.save(); rx.translate(x,y-s*0.34); rx.rotate(a2);
     rx.beginPath(); rx.ellipse(0,-s*0.3,s*0.09,s*0.3,0,0,7); rx.fill(); rx.restore();
   }
 }
+
 function drawComfort(w,h){
-  const bw=Math.min(230,w*0.26), x=w-bw-18, y=h*0.88;
-  const lo=20,hi=28,P=v=>x+((v-lo)/(hi-lo))*bw;
-  rx.font='10px "IBM Plex Mono", monospace'; rx.textBaseline="bottom";
-  rx.textAlign="left"; rx.fillStyle="rgba(20,26,36,.75)";
-  rx.fillText("쾌적밴드  "+S.cl.toFixed(1)+" ~ "+S.ch.toFixed(1)+" °C", x, y-10);
-  rx.fillStyle="rgba(20,26,36,.16)"; rnd(rx,x,y,bw,7,3.5); rx.fill();
-  rx.fillStyle="rgba(40,150,110,.45)";
-  rnd(rx,P(S.cl),y,Math.max(2,P(S.ch)-P(S.cl)),7,3.5); rx.fill();
-  const clamp=Math.max(lo,Math.min(hi,S.rt));
-  rx.fillStyle=(S.rt<S.cl-.05||S.rt>S.ch+.05)?"#b03229":"#141a24";
-  rx.fillRect(P(clamp)-1.5,y-4,3,15);
-  rx.textAlign="center"; rx.fillStyle="rgba(20,26,36,.75)";
-  rx.fillText(S.rt.toFixed(1)+"°C", P(clamp), y+28);
+  // 벽에 붙은 온도조절기처럼 — 실내온도와 운전 상태가 한눈에 읽히도록
+  const cool=S.mode===1, heat=S.mode===2, on=cool||heat;
+  const pw=Math.min(252,w*0.3), ph=96, x=18, y=h-ph-124;   // 하단 타임라인 레일 위
+  rx.save();
+  rx.shadowColor="rgba(16,22,32,.22)"; rx.shadowBlur=18; rx.shadowOffsetY=4;
+  rx.fillStyle="rgba(255,255,255,.93)"; rnd(rx,x,y,pw,ph,8); rx.fill();
+  rx.restore();
+  rx.strokeStyle="rgba(20,26,36,.12)"; rx.lineWidth=1; rnd(rx,x,y,pw,ph,8); rx.stroke();
+
+  const out=S.rt<S.cl-.05||S.rt>S.ch+.05;
+  rx.textBaseline="alphabetic"; rx.textAlign="left";
+  rx.fillStyle="rgba(20,26,36,.5)";
+  rx.font='600 9px "IBM Plex Sans KR",sans-serif';
+  rx.fillText("실 내 온 도", x+14, y+20);
+  rx.fillStyle=out?"#b03229":"#141a24";
+  rx.font='600 34px "IBM Plex Mono",monospace';
+  rx.fillText(S.rt.toFixed(1), x+13, y+52);
+  rx.font='500 12px "IBM Plex Sans KR",sans-serif';
+  rx.fillStyle="rgba(20,26,36,.55)"; rx.fillText("°C", x+13+rx.measureText("  ").width+62, y+52);
+
+  // 운전 상태 칩
+  const chipW=86, cx0=x+pw-chipW-13, cy0=y+14;
+  rx.fillStyle=on?(cool?"rgba(31,111,181,.12)":"rgba(180,69,47,.12)"):"rgba(20,26,36,.07)";
+  rnd(rx,cx0,cy0,chipW,22,11); rx.fill();
+  const dot=on?(cool?"#1f6fb5":"#b4452f"):"#99a0a8";
+  rx.fillStyle=dot;
+  const pulse=on?(1+0.35*Math.sin(animT*0.005)):1;
+  rx.beginPath(); rx.arc(cx0+15,cy0+11,3.4*pulse,0,7); rx.fill();
+  rx.fillStyle=on?dot:"rgba(20,26,36,.5)";
+  rx.font='600 11px "IBM Plex Sans KR",sans-serif';
+  rx.fillText(cool?"냉방 운전":(heat?"난방 운전":"정지"), cx0+26, cy0+15);
+  if(on){
+    rx.textAlign="right"; rx.font='600 12px "IBM Plex Mono",monospace';
+    rx.fillStyle="rgba(20,26,36,.72)";
+    rx.fillText(S.pc.toFixed(1)+" kW", x+pw-13, cy0+36);
+    rx.textAlign="left";
+  }
+
+  // 쾌적밴드
+  const bx=x+14, bw=pw-28, by=y+ph-22, lo=20, hi=28;
+  const P=v=>bx+((Math.max(lo,Math.min(hi,v))-lo)/(hi-lo))*bw;
+  rx.fillStyle="rgba(20,26,36,.10)"; rnd(rx,bx,by,bw,6,3); rx.fill();
+  rx.fillStyle="rgba(40,150,110,.42)";
+  rnd(rx,P(S.cl),by,Math.max(2,P(S.ch)-P(S.cl)),6,3); rx.fill();
+  rx.fillStyle=out?"#b03229":"#141a24";
+  rx.fillRect(P(S.rt)-1.5,by-4,3,14);
+  rx.font='9px "IBM Plex Mono",monospace'; rx.fillStyle="rgba(20,26,36,.5)";
+  rx.fillText("설정 "+S.cl.toFixed(1)+"~"+S.ch.toFixed(1), bx, by-7);
+  rx.textAlign="right"; rx.fillText("외기 "+S.at.toFixed(1)+"°C", bx+bw, by-7);
+  rx.textAlign="left";
 }
 
 // ================= forecast chart =================
