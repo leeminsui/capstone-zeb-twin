@@ -37,8 +37,15 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);ov
       opacity:0;transform:scale(1.14);pointer-events:none;
       transition:opacity .5s ease,transform .7s cubic-bezier(.16,.8,.3,1)}
 body[data-ch="2"] #room{opacity:1;transform:scale(1)}
+#results{position:absolute;inset:0;width:100%;height:100%;display:block;
+      opacity:0;transform:scale(1.06);pointer-events:none;
+      transition:opacity .45s ease,transform .6s cubic-bezier(.16,.8,.3,1)}
+body[data-ch="4"] #results{opacity:1;transform:scale(1)}
 #scene,#sky{transition:opacity .5s ease,transform .7s cubic-bezier(.16,.8,.3,1)}
 body[data-ch="2"] #scene,body[data-ch="2"] #sky{opacity:0;transform:scale(.90)}
+body[data-ch="4"] #scene,body[data-ch="4"] #sky{opacity:0;transform:scale(.94)}
+body[data-ch="4"] #metrics,body[data-ch="4"] #engine,body[data-ch="4"] #clock{opacity:0;pointer-events:none}
+#metrics,#engine,#clock{transition:opacity .35s ease}
 .num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .eyebrow{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .slab{background:var(--slab);border:1px solid var(--line);border-radius:5px;
@@ -144,6 +151,7 @@ body[data-ch="1"] #metrics .m.hide1{display:none}
   <div id="sky"></div>
   <canvas id="scene"></canvas>
   <canvas id="room"></canvas>
+  <canvas id="results"></canvas>
   <div id="overlay"></div>
 
   <div id="topleft">
@@ -151,6 +159,7 @@ body[data-ch="1"] #metrics .m.hide1{display:none}
       <button data-ch="1" type="button" aria-pressed="true">1 · 예측</button>
       <button data-ch="2" type="button">2 · 제어</button>
       <button data-ch="3" type="button">3 · 종합</button>
+      <button data-ch="4" type="button">4 · 결과</button>
     </div>
     <div id="clock" class="slab">
       <div id="date" class="num">—</div>
@@ -225,8 +234,9 @@ body[data-ch="1"] #metrics .m.hide1{display:none}
     <canvas id="track"></canvas>
     <div id="bar">
       <button id="play" type="button">일시정지</button>
-      <button class="sp" data-rate="60" type="button">1h/s</button>
-      <button class="sp" data-rate="240" type="button" aria-pressed="true">4h/s</button>
+      <button class="sp" data-rate="15" type="button">15분/s</button>
+      <button class="sp" data-rate="60" type="button" aria-pressed="true">1h/s</button>
+      <button class="sp" data-rate="240" type="button">4h/s</button>
       <button class="sp" data-rate="720" type="button">12h/s</button>
       <div class="spacer"></div>
       <div id="legend">
@@ -1221,6 +1231,255 @@ function drawComfort(w,h){
   rx.textAlign="left";
 }
 
+// ================= results (chapter 4) =================
+// 전 구간을 한 번 집계해 두고 매 프레임 그리기만 한다.
+const resC=document.getElementById("results"), gx=resC.getContext("2d");
+const R=(function(){
+  const q=0.25, day=[], err=[];
+  let Epv=0,Eld=0,Egi=0,Epc=0,Ecost=0,cool=0;
+  const byReg={clear:[],mid:[],cloud:[]};
+  const work=[], night=[];
+  for(let i=0;i<N;i++){
+    Epv+=D.pvs[i]*q; Eld+=D.ld[i]*q; Egi+=D.gi[i]*q; Epc+=D.pc[i]*q; Ecost+=D.cost[i]*q;
+    if(D.mode[i]===1) cool++;
+    if(D.fc[i]>1||D.meas[i]>1){
+      const e=D.meas[i]-D.fc[i]; day.push(i); err.push(e);
+      (D.cc[i]<.35?byReg.clear:D.cc[i]<.7?byReg.mid:byReg.cloud).push(e);
+    }
+    const hh=Math.floor(i*STEP/60)%24;
+    (hh>=8&&hh<20?work:night).push(i);
+  }
+  const mean=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+  const mae=mean(err.map(Math.abs)), rmse=Math.sqrt(mean(err.map(e=>e*e)));
+  const mu=mean(day.map(i=>D.meas[i]));
+  const r2=1-err.reduce((s,e)=>s+e*e,0)/day.reduce((s,i)=>s+Math.pow(D.meas[i]-mu,2),0);
+  const cap=Math.max(MX("fc"),MX("meas"));
+  const viol=g=>g.filter(i=>D.rt[i]>D.ch[i]+.05||D.rt[i]<D.cl[i]-.05).length;
+  const exc=g=>mean(g.map(i=>Math.max(0,D.rt[i]-D.ch[i],D.cl[i]-D.rt[i])));
+  return {day,err,mae,rmse,bias:mean(err),r2,cap,
+    nmae:mae/cap*100, nrmse:rmse/cap*100,
+    reg:[["맑음",byReg.clear],["보통",byReg.mid],["흐림",byReg.cloud]]
+         .map(r=>({k:r[0],n:r[1].length,mae:mean(r[1].map(Math.abs)),bias:mean(r[1])})),
+    Epv,Eld,Egi,Epc,Ecost,cool,
+    self:(Eld-Egi)/Epv*100, auto:(Eld-Egi)/Eld*100,
+    pvCool:(function(){let c=0;for(let i=0;i<N;i++) if(D.mode[i]===1&&D.pvs[i]>10)c++;return c;})(),
+    coolPrice:(function(){let a=0,b=0;for(let i=0;i<N;i++) if(D.mode[i]===1){a+=D.pr[i]*D.pc[i];b+=D.pc[i];}
+                return b?a/b:0;})(),
+    avgPrice:mean(D.pr.slice(0,N)),
+    work:{n:work.length,v:viol(work),e:exc(work)},
+    night:{n:night.length,v:viol(night),e:exc(night)},
+    days:(function(){const a=[];for(let d=0;d<14;d++){
+      let pv=0,gi=0,c=0,pc=0;
+      for(let k=d*96;k<(d+1)*96&&k<N;k++){pv+=D.pvs[k]*q;gi+=D.gi[k]*q;c+=D.cost[k]*q;pc+=D.pc[k]*q;}
+      a.push({pv,gi,c,pc,cc:D.cc[d*96+48]});} return a;})()
+  };
+})();
+
+function drawResults(){
+  const w=resC.clientWidth, h=resC.clientHeight, dpr=Math.min(devicePixelRatio||1,2);
+  if(!w||!h) return;
+  if(resC.width!==w*dpr||resC.height!==h*dpr){ resC.width=w*dpr; resC.height=h*dpr; }
+  gx.setTransform(dpr,0,0,dpr,0,0); gx.clearRect(0,0,w,h);
+  const FG=cssv("--fg"), MU=cssv("--muted"), LN=cssv("--line");
+  const PV=cssv("--pv"), GC=cssv("--grid-c"), CL=cssv("--cool"), WN=cssv("--warn");
+  const SL=cssv("--slab");
+
+  gx.fillStyle=cssv("--bg"); gx.fillRect(0,0,w,h);
+  const PAD=Math.max(16,w*0.025), top=58, botR=182;   // 상단 챕터바·하단 레일 회피
+  const avail=h-top-botR-PAD;
+  const two=w>900, colW=two?(w-PAD*2-PAD)/2:(w-PAD*2);
+  const L=PAD, Rx=two?PAD+colW+PAD:PAD;
+
+  gx.textBaseline="alphabetic";
+  gx.fillStyle=FG; gx.font='600 15px "IBM Plex Sans KR",sans-serif'; gx.textAlign="left";
+  gx.fillText("실험 결과", L, top+6);
+  gx.fillStyle=MU; gx.font='10.5px "IBM Plex Sans KR",sans-serif';
+  gx.fillText("2026-09-29 ~ 10-12 · 14일 · 15분 간격 1,344스텝", L+78, top+6);
+
+  const y0=top+22;
+  const H=two?Math.min(avail-22,Math.max(330,colW*0.74)):(avail-22)/2;
+  panel(L, y0, colW, H, "PV 발전량 예측 정확도", function(x,y,ww,hh){
+    // KPI 네 개
+    const kp=[["MAE",R.mae.toFixed(2)+" W",PV],["RMSE",R.rmse.toFixed(2)+" W",PV],
+              ["nMAE",R.nmae.toFixed(1)+" %",FG],["R²",R.r2.toFixed(3),FG]];
+    const kw=ww/4;
+    kp.forEach(function(k,i){
+      gx.textAlign="left";
+      gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+      gx.fillText(k[0], x+i*kw, y+12);
+      gx.fillStyle=k[2]; gx.font='600 19px "IBM Plex Mono",monospace';
+      gx.fillText(k[1], x+i*kw, y+34);
+    });
+    gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("낮시간 "+R.day.length+"스텝 · 편향 "+(R.bias>=0?"+":"")+R.bias.toFixed(2)+" W"
+                +" (모델이 실측보다 높게 예측)", x, y+50);
+
+    // 산점도: 예측 vs 실측
+    const sy=y+62, sh=hh-62-54, sw=Math.min(sh,ww*0.52);
+    gx.strokeStyle=LN; gx.lineWidth=1; gx.strokeRect(x+.5,sy+.5,sw,sh);
+    const mx2=v=>x+(v/R.cap)*sw, my2=v=>sy+sh-(v/R.cap)*sh;
+    gx.strokeStyle=MU; gx.globalAlpha=.4; gx.setLineDash([3,3]);
+    gx.beginPath(); gx.moveTo(mx2(0),my2(0)); gx.lineTo(mx2(R.cap),my2(R.cap)); gx.stroke();
+    gx.setLineDash([]); gx.globalAlpha=1;
+    gx.fillStyle=PV;
+    R.day.forEach(function(i){
+      gx.globalAlpha=.16;
+      gx.beginPath(); gx.arc(mx2(D.fc[i]),my2(D.meas[i]),1.9,0,7); gx.fill();
+    });
+    gx.globalAlpha=1;
+    const cur=S.i;
+    if(D.fc[cur]>1||D.meas[cur]>1){
+      gx.strokeStyle=WN; gx.lineWidth=2;
+      gx.beginPath(); gx.arc(mx2(D.fc[cur]),my2(D.meas[cur]),5,0,7); gx.stroke();
+    }
+    gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace';
+    gx.textAlign="center"; gx.fillText("예측 (W) →", x+sw/2, sy+sh+13);
+    gx.save(); gx.translate(x-3,sy+sh/2); gx.rotate(-Math.PI/2);
+    gx.textAlign="center"; gx.fillText("실측 (W) →",0,0); gx.restore();
+    gx.textAlign="left";
+
+    // 레짐별 막대
+    const bx=x+sw+22, bw=ww-sw-22;
+    if(bw>110){
+      gx.textAlign="left"; gx.fillStyle=MU;
+      gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+      gx.fillText("하늘 상태별 MAE", bx, sy+10);
+      const mx3=Math.max.apply(null,R.reg.map(r=>r.mae))*1.25;
+      R.reg.forEach(function(r,i){
+        const by=sy+24+i*34;
+        gx.fillStyle=FG; gx.font='10px "IBM Plex Sans KR",sans-serif';
+        gx.fillText(r.k, bx, by+8);
+        gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace';
+        gx.textAlign="right"; gx.fillText(r.n+"스텝", bx+bw, by+8); gx.textAlign="left";
+        gx.fillStyle=LN; rnd(gx,bx,by+13,bw,7,3.5); gx.fill();
+        gx.fillStyle=PV; rnd(gx,bx,by+13,Math.max(3,bw*r.mae/mx3),7,3.5); gx.fill();
+        gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace';
+        gx.fillText(r.mae.toFixed(2)+" W · bias "+(r.bias>=0?"+":"")+r.bias.toFixed(2),
+                    bx, by+30);
+      });
+      gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
+      wrap("맑은 날일수록 과대예측 경향이 뚜렷하다. 흐린 날 편향은 거의 0이다.",
+           bx, sy+24+3*34+6, bw, 13);
+    }
+  });
+
+  const y1=two?y0:y0+H+18, x1=two?Rx:L;
+  panel(x1, y1, colW, H, "EHP 제어 결과", function(x,y,ww,hh){
+    const kp=[["자가소비율",R.self.toFixed(1)+" %",PV],
+              ["에너지자립률",R.auto.toFixed(1)+" %",PV],
+              ["전기요금",(R.Ecost/10000).toFixed(1)+"만원",GC],
+              ["냉방 운전",(R.cool/N*100).toFixed(1)+" %",CL]];
+    const kw=ww/4;
+    kp.forEach(function(k,i){
+      gx.textAlign="left";
+      gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+      gx.fillText(k[0], x+i*kw, y+12);
+      gx.fillStyle=k[2]; gx.font='600 19px "IBM Plex Mono",monospace';
+      gx.fillText(k[1], x+i*kw, y+34);
+    });
+    gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("14일 누적 · 일평균 "+Math.round(R.Ecost/14).toLocaleString("ko-KR")+" 원", x, y+50);
+
+    // 에너지 수지 막대
+    let by=y+64;
+    gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("14일 에너지 수지 (kWh)", x, by);
+    const emax=Math.max(R.Eld,R.Epv+R.Egi);
+    [["건물 부하",R.Eld,MU],["계통 수전",R.Egi,GC],["PV 발전",R.Epv,PV],["EHP 냉방",R.Epc,CL]]
+      .forEach(function(r,i){
+        const ry=by+10+i*22;
+        gx.fillStyle=FG; gx.font='10px "IBM Plex Sans KR",sans-serif';
+        gx.fillText(r[0], x, ry+9);
+        gx.fillStyle=LN; rnd(gx,x+64,ry+2,ww-64,9,4.5); gx.fill();
+        gx.fillStyle=r[2]; rnd(gx,x+64,ry+2,Math.max(4,(ww-64)*r[1]/emax),9,4.5); gx.fill();
+        gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace'; gx.textAlign="right";
+        gx.fillText(Math.round(r[1]).toLocaleString("ko-KR"), x+ww, ry+9); gx.textAlign="left";
+      });
+
+    // 쾌적도 — 업무시간과 야간을 반드시 분리해서 본다
+    by=by+10+4*22+14;
+    gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("쾌적밴드 준수율", x, by);
+    [["업무시간 08–20",R.work],["야간·비재실",R.night]].forEach(function(r,i){
+      const ry=by+10+i*26, ok=100*(1-r[1].v/r[1].n);
+      gx.fillStyle=FG; gx.font='10px "IBM Plex Sans KR",sans-serif';
+      gx.fillText(r[0], x, ry+9);
+      const gw=ww-150;
+      gx.fillStyle=LN; rnd(gx,x+96,ry+2,gw,9,4.5); gx.fill();
+      gx.fillStyle=i?WN:PV; rnd(gx,x+96,ry+2,Math.max(3,gw*ok/100),9,4.5); gx.fill();
+      gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace'; gx.textAlign="right";
+      gx.fillText(ok.toFixed(0)+"% · 평균이탈 "+r[1].e.toFixed(2)+"°C", x+ww, ry+9);
+      gx.textAlign="left";
+    });
+    gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
+    wrap("야간 이탈은 재실자가 없어 냉방을 정지한 결과다. 평가는 업무시간 기준으로 본다.",
+         x, by+10+2*26+12, ww, 13);
+
+    // PV 연계 운전 — MPC가 발전 시간대에 냉방을 몰았는지
+    let cy=by+10+2*26+42;
+    gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("PV 연계 운전", x, cy);
+    const pvh=R.pvCool/R.cool*100;
+    gx.fillStyle=FG; gx.font='10px "IBM Plex Sans KR",sans-serif';
+    gx.fillText("발전 중 냉방 비율", x, cy+22);
+    const gw2=ww-150;
+    gx.fillStyle=LN; rnd(gx,x+96,cy+15,gw2,9,4.5); gx.fill();
+    gx.fillStyle=PV; rnd(gx,x+96,cy+15,Math.max(3,gw2*pvh/100),9,4.5); gx.fill();
+    gx.fillStyle=MU; gx.font='9px "IBM Plex Mono",monospace'; gx.textAlign="right";
+    gx.fillText(pvh.toFixed(0)+"% · "+R.pvCool+"/"+R.cool+"스텝", x+ww, cy+22);
+    gx.textAlign="left";
+    gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
+    wrap("냉방 운전의 "+pvh.toFixed(0)+"%가 PV 발전 구간에 몰려 있다. 평균 냉방단가 "
+         +R.coolPrice.toFixed(1)+" 원/kWh로 전체 평균 "+R.avgPrice.toFixed(1)
+         +" 원/kWh보다 낮다 — 잉여 전력을 열로 흡수한 결과다.",
+         x, cy+44, ww, 13);
+  });
+
+  // 하단: 일별 막대
+  const dy=h-botR+10, dh=botR-128;
+  gx.fillStyle=MU; gx.font='600 9px "IBM Plex Sans KR",sans-serif'; gx.textAlign="left";
+  gx.fillText("일별 PV 발전 / 계통 수전 / 전기요금", PAD, dy+2);
+  const dw=(w-PAD*2)/14, pmax=Math.max.apply(null,R.days.map(d=>Math.max(d.pv,d.gi)));
+  R.days.forEach(function(d,i){
+    const bx=PAD+i*dw, bw2=dw*0.33, base=dy+dh;
+    const cur=Math.floor(S.i/96)===i;
+    if(cur){ gx.fillStyle="rgba(127,140,155,.14)"; gx.fillRect(bx-2,dy+8,dw-2,dh-8); }
+    gx.fillStyle=PV; gx.globalAlpha=cur?1:.72;
+    const hp=(d.pv/pmax)*(dh-24); rnd(gx,bx+dw*0.08,base-hp,bw2,hp,2); gx.fill();
+    gx.fillStyle=GC;
+    const hg=(d.gi/pmax)*(dh-24); rnd(gx,bx+dw*0.08+bw2+2,base-hg,bw2,hg,2); gx.fill();
+    gx.globalAlpha=1;
+    gx.fillStyle=cur?FG:MU; gx.font='8.5px "IBM Plex Mono",monospace'; gx.textAlign="center";
+    const dt=new Date(T0.getTime()+i*86400000);
+    gx.fillText((dt.getMonth()+1)+"/"+dt.getDate(), bx+dw/2, base+12);
+    gx.fillStyle=MU;
+    gx.fillText(Math.round(d.c/1000)+"k", bx+dw/2, dy+6+8);
+  });
+  gx.textAlign="left";
+
+  function panel(x,y,ww,hh,title,body){
+    gx.save();
+    gx.shadowColor="rgba(16,22,32,.10)"; gx.shadowBlur=14; gx.shadowOffsetY=3;
+    gx.fillStyle=SL; rnd(gx,x,y,ww,hh,7); gx.fill();
+    gx.restore();
+    gx.strokeStyle=LN; gx.lineWidth=1; rnd(gx,x,y,ww,hh,7); gx.stroke();
+    gx.fillStyle=FG; gx.font='600 11.5px "IBM Plex Sans KR",sans-serif'; gx.textAlign="left";
+    gx.fillText(title, x+14, y+20);
+    gx.strokeStyle=LN; gx.beginPath();
+    gx.moveTo(x+14,y+28.5); gx.lineTo(x+ww-14,y+28.5); gx.stroke();
+    body(x+14, y+34, ww-28, hh-44);
+  }
+  function wrap(text,x,y,maxw,lh){
+    const words=text.split(" "); let line="", yy=y;
+    words.forEach(function(wd){
+      const t=line?line+" "+wd:wd;
+      if(gx.measureText(t).width>maxw && line){ gx.fillText(line,x,yy); line=wd; yy+=lh; }
+      else line=t;
+    });
+    if(line) gx.fillText(line,x,yy);
+  }
+}
+
 // ================= forecast chart =================
 const fcC=document.getElementById("fcChart"), fx=fcC.getContext("2d");
 const PAST_N=12;                              // 과거 3시간
@@ -1430,7 +1689,7 @@ function updateScene(dt){
 }
 
 // ================= loop =================
-let pos=3*96+48, rate=240, playing=true, last=performance.now(), animT=0;  // 10/02 12:00 (구름 0.29, 가장 맑은 날)
+let pos=3*96+48, rate=60, playing=true, last=performance.now(), animT=0;  // 10/02 12:00 (구름 0.29, 가장 맑은 날)
 function frame(now){
   const dt=Math.max(0,Math.min(120,now-last)); last=now; animT=now;
   if(playing&&!scrub){ pos+=(rate*dt/1000)/STEP; if(pos>=N-1) pos=0; }
@@ -1440,6 +1699,7 @@ function frame(now){
   updateScene(dt); updateHUD();
   if(chap!==2 || now-chapAt<700) renderer.render(scene,camera);   // 전환 동안만 둘 다 그린다
   if(chap===2) drawRoom();
+  if(chap===4) drawResults();
   placeTags(); drawTrack();
   requestAnimationFrame(frame);
 }
@@ -1455,7 +1715,7 @@ addEventListener("keydown",e=>{
   if(e.key===" "){e.preventDefault();$("play").click();}
   if(e.key==="ArrowRight") pos=Math.min(N-1,pos+4);
   if(e.key==="ArrowLeft")  pos=Math.max(0,pos-4);
-  if("123".includes(e.key)) setChapter(+e.key);
+  if("1234".includes(e.key)) setChapter(+e.key);
 });
 
 setChapter(1); applyTheme(); resize(); sample(pos); updateHUD();
