@@ -45,13 +45,11 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);ov
 #chapters button{border-radius:0;border-right-width:0;padding:6px 11px}
 #chapters button:first-child{border-radius:4px 0 0 4px}
 #chapters button:last-child{border-radius:0 4px 4px 0;border-right-width:1px}
-#clock{pointer-events:none}
-#date{font-size:11.5px;color:var(--fg);opacity:.72;letter-spacing:.04em;
-       text-shadow:0 1px 8px rgba(0,0,0,.45)}
-#time{font-size:38px;font-weight:700;line-height:1.02;letter-spacing:-.01em;
-      text-shadow:0 1px 14px rgba(0,0,0,.3)}
-#site{font-size:10.5px;color:var(--fg);opacity:.6;margin-top:1px;
-       text-shadow:0 1px 8px rgba(0,0,0,.45)}
+#clock{pointer-events:none;padding:7px 12px 9px;width:max-content}
+#date{font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+#time{font-size:36px;font-weight:700;line-height:1.04;letter-spacing:-.01em}
+#site{font-size:10.5px;color:var(--muted);margin-top:1px}
+#wx{font-size:10.5px;color:var(--fg);margin-top:3px;font-weight:500}
 
 /* ---- engine pipeline ---- */
 #engine{position:absolute;top:max(12px,env(safe-area-inset-top,0px));left:50%;
@@ -85,14 +83,16 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);ov
 #bandDot{position:absolute;top:-2px;width:2px;height:9px;background:var(--fg);border-radius:1px}
 
 /* ---- forecast card ---- */
-#fcCard{position:absolute;left:max(16px,env(safe-area-inset-left,0px));
-        bottom:calc(106px + env(safe-area-inset-bottom,0px));width:206px;padding:9px 11px 10px}
-.fcrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:5px}
-.fcrow .k{font-size:10.5px;color:var(--muted)}
-.fcrow .v{font-size:15px;font-weight:600}
-.fcbar{height:6px;border-radius:2px;background:var(--line);overflow:hidden}
-.fcbar i{display:block;height:100%;border-radius:2px}
-#fcNote{font-size:9.5px;color:var(--muted);margin-top:7px;line-height:1.45}
+#fcPanel{position:absolute;left:max(16px,env(safe-area-inset-left,0px));
+        bottom:calc(106px + env(safe-area-inset-bottom,0px));
+        width:min(620px,calc(100% - 260px));padding:10px 13px 11px;display:none}
+body[data-ch="1"] #fcPanel{display:block}
+#fcHead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap}
+#fcNums{display:flex;gap:14px;align-items:baseline}
+#fcNums span{font-size:10.5px;color:var(--muted)}
+#fcNums b{font-family:var(--font-num);font-size:15px;font-weight:600;margin-left:4px}
+#fcChart{width:100%;height:188px;display:block;margin-top:4px}
+#fcNote{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.45}
 
 /* ---- 3D labels ---- */
 #overlay{position:absolute;inset:0;pointer-events:none}
@@ -124,12 +124,11 @@ button:focus-visible{outline:2px solid var(--pv);outline-offset:2px}
 #legend i{display:inline-block;width:9px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
 
 /* chapter visibility */
-body[data-ch="1"] #metrics .m.hide1,
-body[data-ch="2"] #fcCard,
-body[data-ch="3"] #fcCard{display:none}
+body[data-ch="1"] #metrics .m.hide1{display:none}
 
 @media (max-width:900px){
-  #engine{display:none} #fcCard{display:none} #legend{display:none}
+  #engine{display:none} #legend{display:none}
+  body[data-ch="1"] #fcPanel{display:none}
   #metrics{width:142px;top:calc(max(12px,env(safe-area-inset-top,0px)) + 112px)}
   .m .v{font-size:16px} #time{font-size:28px}
 }
@@ -146,10 +145,11 @@ body[data-ch="3"] #fcCard{display:none}
       <button data-ch="2" type="button">2 · 제어</button>
       <button data-ch="3" type="button">3 · 종합</button>
     </div>
-    <div id="clock">
+    <div id="clock" class="slab">
       <div id="date" class="num">—</div>
       <div id="time" class="num">—</div>
       <div id="site">충남대 공학 2호관 · P2H-EMS</div>
+      <div id="wx">—</div>
     </div>
   </div>
 
@@ -202,12 +202,15 @@ body[data-ch="3"] #fcCard{display:none}
     </div>
   </div>
 
-  <div id="fcCard" class="slab">
-    <div class="eyebrow">대전 패널 · 예측 대 실측</div>
-    <div class="fcrow"><span class="k">예측</span><span class="v num" id="fcV">—</span></div>
-    <div class="fcbar"><i id="fcB" style="background:var(--pv)"></i></div>
-    <div class="fcrow"><span class="k">실측</span><span class="v num" id="msV">—</span></div>
-    <div class="fcbar"><i id="msB" style="background:var(--fg)"></i></div>
+  <div id="fcPanel" class="slab">
+    <div id="fcHead">
+      <span class="eyebrow">대전 패널 발전량 (W) · 6시간 선행 예측</span>
+      <span id="fcNums">
+        <span style="color:var(--pv)">예측<b id="fcV">—</b></span>
+        <span>실측<b id="msV">—</b></span>
+      </span>
+    </div>
+    <canvas id="fcChart"></canvas>
     <div id="fcNote">—</div>
   </div>
 
@@ -242,7 +245,7 @@ function fill(a){
   for(let i=0;i<a.length;i++) if(a[i]==null) a[i]=0;
   return a;
 }
-["rt","oat","pc","ph","ld","gi","pvs","cur","pr","cost","cl","ch","fc","meas","ghi","ptemp"].forEach(k=>fill(D[k]));
+["rt","oat","pc","ph","ld","gi","pvs","cur","pr","cost","cl","ch","fc","meas","ghi","ptemp","cc","at","sghi"].forEach(k=>fill(D[k]));
 const MX = k => D[k].reduce((a,b)=>Math.max(a,b||0),0);
 const PV_MAX=MX("pvs"), GI_MAX=MX("gi"), PC_MAX=MX("pc");
 const PANEL_MAX = Math.max(MX("fc"), MX("meas"));
@@ -256,6 +259,7 @@ function sample(x){
   S.rt=L("rt");S.oat=L("oat");S.pc=L("pc");S.ph=L("ph");S.ld=L("ld");S.gi=L("gi");
   S.pv=L("pvs");S.cur=L("cur");S.pr=L("pr");S.cl=L("cl");S.ch=L("ch");
   S.fc=L("fc");S.meas=L("meas");S.ghi=L("ghi");
+  S.cc=L("cc");S.at=L("at");S.sghi=L("sghi");
   S.mode=D.mode[i];S.cost=COST[i];S.rtm=D.rtm[i];S.i=i;S.frac=f;
   S.date=new Date(T0.getTime()+x*STEP*60000);
 }
@@ -264,12 +268,21 @@ function sample(x){
 const cv=document.getElementById("scene"), app=document.getElementById("app");
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=0.70;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(38,1,0.1,600);
-const hemi=new THREE.HemisphereLight(0xffffff,0x4a5568,.7); scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0xdbe6f2,0x40484a,.7); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xfff0d8,1.0); scene.add(sun);
+sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:220});
+sun.shadow.bias=-0.0012; sun.shadow.normalBias=0.4;
 const fillL=new THREE.DirectionalLight(0x9fc0e8,.25); fillL.position.set(-20,12,-16); scene.add(fillL);
 const world=new THREE.Group(); scene.add(world);
+function shade(m){ m.castShadow=true; m.receiveShadow=true; return m; }
 const edgeMats=[];
 function edges(geo,parent,op){
   const m=new THREE.LineBasicMaterial({color:0x1b2430,transparent:true,opacity:op||.3});
@@ -308,7 +321,7 @@ function wing(w,d,cx,cz,open){
     mats.forEach(m=>{ m.side=THREE.DoubleSide; });
     mats[open].visible=false;
   }
-  const m=new THREE.Mesh(g,mats);
+  const m=shade(new THREE.Mesh(g,mats));
   m.position.set(cx,BASE+FLOORS*FH/2,cz);
   edges(g,m,.22); world.add(m);
   // parapet
@@ -349,19 +362,19 @@ wing(WB,34,  16.25, 1, 1);                      // right wing — 중정 쪽(-x)
 })();
 
 // --- ground + courtyard ---
-const groundMat=new THREE.MeshStandardMaterial({color:0x6f7a64,roughness:1});
+const groundMat=new THREE.MeshStandardMaterial({color:0x53604a,roughness:1});
 const ground=new THREE.Mesh(new THREE.CircleGeometry(95,56),groundMat);
-ground.rotation.x=-Math.PI/2; world.add(ground);
-const paveMat=new THREE.MeshStandardMaterial({color:0x9a9ea3,roughness:.97});
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; world.add(ground);
+const paveMat=new THREE.MeshStandardMaterial({color:0x7e838a,roughness:.97});
 const pave=new THREE.Mesh(new THREE.PlaneGeometry(26,32),paveMat);
-pave.rotation.x=-Math.PI/2; pave.position.set(0,.03,2); world.add(pave);
-const lawnMat=new THREE.MeshStandardMaterial({color:0x7d7a52,roughness:1});
+pave.rotation.x=-Math.PI/2; pave.position.set(0,.03,2); pave.receiveShadow=true; world.add(pave);
+const lawnMat=new THREE.MeshStandardMaterial({color:0x61623c,roughness:1});
 [[-7,-4],[7,-4],[-7,8],[7,8]].forEach(([x,z])=>{
   const b=new THREE.Mesh(new THREE.PlaneGeometry(9,9),lawnMat);
   b.rotation.x=-Math.PI/2; b.position.set(x,.05,z); world.add(b);
 });
 // clipped hedges + bare trees, as in the courtyard photos
-const hedgeMat=new THREE.MeshStandardMaterial({color:0x4b5f3c,roughness:1});
+const hedgeMat=new THREE.MeshStandardMaterial({color:0x3a4c2e,roughness:1});
 for(let i=0;i<26;i++){
   const a=i/26*Math.PI*2, r=5+((i*7)%5);
   const s=new THREE.Mesh(new THREE.SphereGeometry(.75+((i*3)%4)*.14,10,7),hedgeMat);
@@ -377,6 +390,78 @@ const barkMat=new THREE.MeshStandardMaterial({color:0x4a3d32,roughness:1});
   cr.position.set(x,5.1,z); cr.scale.y=.8; world.add(cr);
 });
 
+// --- surroundings: ridge line, campus blocks, apartments, road ---
+(function environment(){
+  let seed=7; const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+
+  // 멀리 보이는 산줄기 (대전 분지)
+  const ridge=new THREE.MeshStandardMaterial({color:0x5c6b73,roughness:1,
+               transparent:true,opacity:.85,fog:false});
+  for(let i=0;i<26;i++){
+    const a=rnd()*Math.PI*2, d=210+rnd()*90;
+    const hgt=26+rnd()*46, rad=38+rnd()*34;
+    const m=new THREE.Mesh(new THREE.ConeGeometry(rad,hgt,5),ridge);
+    m.position.set(Math.cos(a)*d, hgt/2-6, Math.sin(a)*d);
+    m.rotation.y=rnd()*3; world.add(m);
+  }
+  // 배후 아파트 단지
+  const apt=new THREE.MeshStandardMaterial({map:facade(14,4,"#c9cdd2","#b4b9bf","#aeb3b9"),roughness:.95});
+  for(let i=0;i<11;i++){
+    const a=-0.5+rnd()*2.4, d=120+rnd()*55, hgt=34+rnd()*26;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(11,hgt,13),apt);
+    m.position.set(Math.cos(a)*d, hgt/2, Math.sin(a)*d); m.rotation.y=rnd()*1.2; world.add(m);
+  }
+  // 주변 캠퍼스 건물
+  for(let i=0;i<14;i++){
+    const a=rnd()*Math.PI*2, d=62+rnd()*52;
+    const w=16+rnd()*26, dp=13+rnd()*12, fl=3+Math.floor(rnd()*3), hgt=fl*3.4;
+    const mt=new THREE.MeshStandardMaterial({
+      map:facade(fl,Math.max(3,Math.round(w/3.2)),
+                 rnd()<.35?"#d9cfc2":"#e3e1dc", "#cbc6bf","#c2bdb6"),roughness:.94});
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,dp),mt);
+    m.position.set(Math.cos(a)*d, hgt/2, Math.sin(a)*d);
+    m.rotation.y=Math.round(rnd()*4)*Math.PI/2+(rnd()-.5)*.5;
+    world.add(m);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(w+.5,.5,dp+.5),
+              new THREE.MeshStandardMaterial({color:0xb8bcc1,roughness:.95}));
+    cap.position.set(m.position.x,hgt+.25,m.position.z); cap.rotation.y=m.rotation.y; world.add(cap);
+  }
+  // 앞쪽 도로와 주차된 차
+  const road=new THREE.Mesh(new THREE.PlaneGeometry(150,11),
+             new THREE.MeshStandardMaterial({color:0x54585d,roughness:1}));
+  road.rotation.x=-Math.PI/2; road.position.set(0,.06,40); world.add(road);
+  const carCols=[0xd8dade,0x2b3038,0x7d8894,0x9c3b32,0x27405e];
+  for(let i=0;i<18;i++){
+    const c=carCols[Math.floor(rnd()*carCols.length)];
+    const b=new THREE.Mesh(new THREE.BoxGeometry(4.3,1.1,1.9),
+            new THREE.MeshStandardMaterial({color:c,roughness:.5,metalness:.25}));
+    const x=-62+i*7.2+rnd()*2, z=36+(i%2)*8.4;
+    b.position.set(x,.72,z); world.add(b);
+    const t=new THREE.Mesh(new THREE.BoxGeometry(2.3,.8,1.75),
+            new THREE.MeshStandardMaterial({color:c,roughness:.5,metalness:.25}));
+    t.position.set(x-.25,1.6,z); world.add(t);
+  }
+  // 가로등과 둘레 나무
+  for(let i=0;i<12;i++){
+    const x=-60+i*11;
+    const po=new THREE.Mesh(new THREE.CylinderGeometry(.1,.14,7,6),
+             new THREE.MeshStandardMaterial({color:0x8b9199,roughness:.8}));
+    po.position.set(x,3.5,33); world.add(po);
+  }
+  const trunk=new THREE.MeshStandardMaterial({color:0x4a3d32,roughness:1});
+  const leaf =new THREE.MeshStandardMaterial({color:0x3b4f2c,roughness:1});
+  for(let i=0;i<48;i++){
+    const a=rnd()*Math.PI*2, d=30+rnd()*48;
+    const x=Math.cos(a)*d, z=Math.sin(a)*d;
+    if(Math.abs(x)<24&&z>-26&&z<26) continue;      // 건물·중정 자리는 비움
+    const hgt=4+rnd()*3.5;
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(.16,.26,hgt,6),trunk);
+    t.position.set(x,hgt/2,z); world.add(t);
+    const cr=new THREE.Mesh(new THREE.SphereGeometry(1.5+rnd()*1.1,8,6),leaf);
+    cr.position.set(x,hgt+1.1,z); cr.scale.y=.85; world.add(cr);
+  }
+})();
+
 // --- rooftop PV on all three wings ---
 const pvMats=[];
 function pvRow(x0,z0,dx,dz,n){
@@ -384,7 +469,7 @@ function pvRow(x0,z0,dx,dz,n){
     const g=new THREE.BoxGeometry(Math.abs(dx)>Math.abs(dz)?2.2:1.5,.1,Math.abs(dx)>Math.abs(dz)?1.5:2.2);
     const m=new THREE.MeshStandardMaterial({color:0x16263d,roughness:.3,metalness:.5,
             emissive:new THREE.Color(0x000000)});
-    const p=new THREE.Mesh(g,m);
+    const p=shade(new THREE.Mesh(g,m));
     p.position.set(x0+dx*i, HTOP+1.0, z0+dz*i);
     p.rotation.x=-22*Math.PI/180;
     world.add(p); pvMats.push(m);
@@ -449,6 +534,156 @@ for(let k=0;k<FLOORS;k++){
   supply.push({geo,mat,cnt,t:new Float32Array(cnt).map((_,i)=>i/cnt),y:y+FH-.9});
 }
 
+// --- a real office on the 3rd floor, for the interior chapter ---
+const officeLights=[];
+(function office(){
+  const y0=BASE+2*FH, cx=16.25, CH_=FH-.25;
+  const M=(c,r,o)=>new THREE.MeshStandardMaterial(
+        Object.assign({color:c,roughness:r==null?.9:r},o||{}));
+
+  // 바닥 — 밝은 회색 타일 + 가운데 러그
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(WB-.7,29.5),
+        M(0xaeb2b7,.85,{side:THREE.DoubleSide}));
+  fl.rotation.x=-Math.PI/2; fl.position.set(cx,y0+.2,1); fl.receiveShadow=true; world.add(fl);
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(5.0,7.0),M(0xa49a8d,.98,{side:THREE.DoubleSide}));
+  rug.rotation.x=-Math.PI/2; rug.position.set(cx,y0+.22,3.5); world.add(rug);
+
+  // 천장
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(WB-.7,29.5),
+        M(0xe7eaec,.95,{side:THREE.DoubleSide}));
+  ce.rotation.x=Math.PI/2; ce.position.set(cx,y0+CH_,1); world.add(ce);
+
+  // 중정 쪽 커튼월 — 바닥부터 천장까지
+  const glassM=M(0x9fc2d8,.18,{transparent:true,opacity:.26,metalness:.25,side:THREE.DoubleSide});
+  const mullM =M(0xe8eaec,.7);
+  const gw=new THREE.Mesh(new THREE.PlaneGeometry(29.5,CH_-.1),glassM);
+  gw.rotation.y=Math.PI/2; gw.position.set(cx-3.4,y0+CH_/2,1); world.add(gw);
+  for(let k=0;k<=16;k++){
+    const v=new THREE.Mesh(new THREE.BoxGeometry(.07,CH_-.1,.1),mullM);
+    v.position.set(cx-3.4,y0+CH_/2,-13.5+k*1.85); world.add(v);
+  }
+  [0.25,0.98].forEach(f=>{
+    const t=new THREE.Mesh(new THREE.BoxGeometry(.09,.1,29.5),mullM);
+    t.position.set(cx-3.4,y0+CH_*f,1); world.add(t);
+  });
+
+  // 노출 콘크리트 기둥
+  for(const pz of [-9.5,-1,8]){
+    const col=new THREE.Mesh(new THREE.BoxGeometry(.62,CH_,.62),M(0xb3b5b6,.97));
+    col.position.set(cx-2.55,y0+CH_/2,pz); col.castShadow=true; world.add(col);
+  }
+
+  // 라인 조명 + 실제 광원
+  const stripM=M(0xffffff,.6,{emissive:new THREE.Color(0xfff6e2),emissiveIntensity:0.85});
+  for(let k=0;k<9;k++){
+    for(const lx of [cx-1.7,cx+1.7]){
+      const s=new THREE.Mesh(new THREE.BoxGeometry(.11,.07,2.3),stripM);
+      s.position.set(lx,y0+CH_-.09,-12.5+k*3.3); world.add(s);
+    }
+  }
+  [-10,-3,4,11].forEach(lz=>{
+    const L=new THREE.PointLight(0xfff1d6,.55,15,2);
+    L.position.set(cx,y0+CH_-.45,lz); world.add(L); officeLights.push(L);
+  });
+
+  // 천장 카세트형 EHP 실내기
+  const caseM=M(0xf7f9fa,.6), grillM=M(0x9aa7b0,.5);
+  UNIT_Z.forEach(uz=>{
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.55,.3,1.55),caseM);
+    b.position.set(cx,y0+CH_-.16,uz); world.add(b);
+    const g=new THREE.Mesh(new THREE.BoxGeometry(1.0,.05,1.0),grillM);
+    g.position.set(cx,y0+CH_-.33,uz); world.add(g);
+  });
+
+  // 책상 — 목재 상판 + 회색 서랍장
+  const topM=M(0xc2a079,.65), pedM=M(0xd3d6d9,.8), legM=M(0x6f757b,.6);
+  const chairM=M(0x33383f,.95), screenM=M(0x18222c,.3,
+        {emissive:new THREE.Color(0x24445e),emissiveIntensity:.55});
+  for(let i2=0;i2<8;i2++){
+    const z=-12.2+i2*3.5;
+    for(const side of [-1,1]){
+      const dx=cx+side*2.0;
+      const top=new THREE.Mesh(new THREE.BoxGeometry(1.75,.07,1.35),topM);
+      top.position.set(dx,y0+.95,z); top.castShadow=true; top.receiveShadow=true; world.add(top);
+      for(const ox of [-.75,.75]) for(const oz of [-.55,.55]){
+        const lg=new THREE.Mesh(new THREE.BoxGeometry(.06,.72,.06),legM);
+        lg.position.set(dx+ox,y0+.58,z+oz); world.add(lg);
+      }
+      const ped=new THREE.Mesh(new THREE.BoxGeometry(.5,.62,.6),pedM);
+      ped.position.set(dx+side*.5,y0+.53,z); world.add(ped);
+      const mon=new THREE.Mesh(new THREE.BoxGeometry(.05,.42,.72),screenM);
+      mon.position.set(dx+side*.68,y0+1.21,z); world.add(mon);
+      const st=new THREE.Mesh(new THREE.BoxGeometry(.18,.12,.18),legM);
+      st.position.set(dx+side*.68,y0+1.04,z); world.add(st);
+      const seat=new THREE.Mesh(new THREE.BoxGeometry(.52,.1,.52),chairM);
+      seat.position.set(dx-side*.95,y0+.65,z); world.add(seat);
+      const back=new THREE.Mesh(new THREE.BoxGeometry(.1,.66,.5),chairM);
+      back.position.set(dx-side*1.2,y0+1.0,z); world.add(back);
+    }
+  }
+
+  // 재실자 — 스케일감과 사무실다운 분위기
+  const SKIN=[0xe8c9a8,0xdcb48e,0xf0d6bb];
+  const WEAR=[0x3c4654,0x6b7280,0x8a95a3,0x2f3b4a,0x9aa3ad,0x4a5565];
+  let ps=5; const prn=()=>(ps=(ps*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  function person(px,pz,face,seated){
+    const w=WEAR[Math.floor(prn()*WEAR.length)], s=SKIN[Math.floor(prn()*SKIN.length)];
+    const g=new THREE.Group();
+    const torso=new THREE.Mesh(new THREE.BoxGeometry(.42,seated?.58:.64,.26),M(w,.95));
+    torso.position.y=seated?.95:1.18; torso.castShadow=true; g.add(torso);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.125,10,8),M(s,.92));
+    head.position.y=seated?1.37:1.62; g.add(head);
+    const hair=new THREE.Mesh(new THREE.SphereGeometry(.132,10,8),M(0x2a2420,.95));
+    hair.position.y=seated?1.40:1.65; hair.scale.y=.72; g.add(hair);
+    for(const sx of [-.27,.27]){
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(.1,seated?.42:.5,.12),M(w,.95));
+      arm.position.set(sx,seated?.98:1.16,seated?.1:0);
+      if(seated) arm.rotation.x=-.5;
+      g.add(arm);
+    }
+    if(seated){
+      for(const sx of [-.12,.12]){
+        const th2=new THREE.Mesh(new THREE.BoxGeometry(.15,.12,.46),M(0x39404a,.95));
+        th2.position.set(sx,.66,.22); g.add(th2);
+        const sh=new THREE.Mesh(new THREE.BoxGeometry(.13,.46,.13),M(0x39404a,.95));
+        sh.position.set(sx,.4,.42); g.add(sh);
+      }
+    } else {
+      for(const sx of [-.12,.12]){
+        const lg2=new THREE.Mesh(new THREE.BoxGeometry(.15,.82,.17),M(0x39404a,.95));
+        lg2.position.set(sx,.42,0); g.add(lg2);
+      }
+    }
+    g.position.set(px,y0+.2,pz); g.rotation.y=face; world.add(g);
+  }
+  // 책상에 앉은 사람들 (의자 위치에 맞춰 책상을 바라보게)
+  [[-1,-12.2],[1,-8.7],[-1,-5.2],[1,-1.7],[-1,1.8],[1,8.8]].forEach(([side,z])=>
+    person(cx+side*1.6-side*.95, z, side>0?-Math.PI/2:Math.PI/2, true));
+  person(cx-2.6,-10.8, Math.PI*0.62, false);   // 창가에 선 사람
+  person(cx+2.7,  6.2, Math.PI*1.35, false);
+
+  // 화분
+  const potM=M(0xf0f1f2,.85), plantM=M(0x3f6b3a,.95);
+  [[-2.4,-7.5],[2.4,-2.0],[-2.4,5.5],[2.4,11.0]].forEach(([ox,pz])=>{
+    const pot=new THREE.Mesh(new THREE.CylinderGeometry(.26,.2,.5,10),potM);
+    pot.position.set(cx+ox,y0+.45,pz); world.add(pot);
+    for(let b=0;b<4;b++){
+      const lf=new THREE.Mesh(new THREE.SphereGeometry(.3,8,6),plantM);
+      lf.position.set(cx+ox+(b%2?.22:-.2),y0+.85+b*.16,pz+(b<2?.16:-.14));
+      lf.scale.set(1,1.5,.6); lf.rotation.z=(b-1.5)*.4; world.add(lf);
+    }
+  });
+
+  // 끝쪽 유리 회의실
+  const pg=new THREE.Mesh(new THREE.PlaneGeometry(WB-.8,CH_-.1),
+        M(0xbcd4e2,.2,{transparent:true,opacity:.3,side:THREE.DoubleSide}));
+  pg.position.set(cx,y0+CH_/2,-13.2); world.add(pg);
+  const fr=new THREE.Mesh(new THREE.BoxGeometry(WB-.8,.09,.1),mullM);
+  fr.position.set(cx,y0+CH_-.1,-13.2); world.add(fr);
+  const wb=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.2),M(0xfafbfc,.85,{side:THREE.DoubleSide}));
+  wb.position.set(cx,y0+1.6,-15.6); world.add(wb);
+})();
+
 // --- grid tower ---
 const TX=40, TZ=-18;
 const tMat=new THREE.MeshStandardMaterial({color:0x6e7681,roughness:.9});
@@ -460,6 +695,20 @@ for(let i=0;i<3;i++){
   const a=new THREE.Mesh(new THREE.BoxGeometry(5.4,.16,.16),tMat);
   a.position.set(TX,14+i*2.1,TZ); world.add(a);
 }
+
+// --- cloud deck, driven by the reconstructed cloud fraction ---
+const clouds=[];
+(function(){
+  let s=19; const rnd=()=>(s=(s*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  for(let i=0;i<34;i++){
+    const mt=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false});
+    const m=new THREE.Mesh(new THREE.SphereGeometry(1,9,7),mt);
+    const a=rnd()*Math.PI*2, d=30+rnd()*120;
+    m.position.set(Math.cos(a)*d, 52+rnd()*26, Math.sin(a)*d);
+    m.scale.set(16+rnd()*22, 5+rnd()*4, 12+rnd()*16);
+    world.add(m); clouds.push({m, sp:.0006+rnd()*.0012, th:rnd()*6.28});
+  }
+})();
 
 // --- celestial body ---
 const sunBall=new THREE.Mesh(new THREE.SphereGeometry(2.2,20,16),
@@ -494,62 +743,6 @@ function stepFlow(fl,frac,dt){
   fl.mat.size=0.3+frac*0.45;
 }
 
-// ================= receding-horizon ribbon =================
-// Sits above the roof: the 6-hour Transformer forecast ahead of "now",
-// with what was actually measured trailing behind it.
-const HZG=new THREE.Group(); world.add(HZG);
-const HX_NOW=-11, HX_END=22, HX_PAST=-22, HY=HTOP+8, HZZ=-15, HSCALE=7;
-const HSPAN=HX_END-HX_NOW, HX0=HX_NOW;
-const hzPts=HZ, pastPts=9, PASTDX=(HX_NOW-HX_PAST)/(pastPts-1);
-function lineObj(n,color,w,op){
-  const g=new THREE.BufferGeometry();
-  g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(n*3),3));
-  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity:op==null?.95:op,linewidth:w||1});
-  const l=new THREE.Line(g,m); HZG.add(l); return {g,m,l};
-}
-const hzLine=lineObj(hzPts,0x2fd79b,2);
-const pastLine=lineObj(pastPts,0xdfe6ee,1,.75);
-// filled band under the forecast
-const bandGeo=new THREE.BufferGeometry();
-bandGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(hzPts*2*3),3));
-bandGeo.setIndex((()=>{const a=[];for(let i=0;i<hzPts-1;i++){const b=i*2;a.push(b,b+1,b+2,b+1,b+3,b+2);}return a;})());
-const bandMat=new THREE.MeshBasicMaterial({color:0x2fd79b,transparent:true,opacity:.17,
-              side:THREE.DoubleSide,depthWrite:false});
-HZG.add(new THREE.Mesh(bandGeo,bandMat));
-// baseline + "now" post
-(function(){
-  const g=new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(HX_PAST,HY,HZZ), new THREE.Vector3(HX_END,HY,HZZ)]);
-  const m=new THREE.LineBasicMaterial({color:0x8fa0b4,transparent:true,opacity:.4});
-  edgeMats.push(m); HZG.add(new THREE.Line(g,m));
-})();
-const nowPost=(()=>{
-  const g=new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(HX0,HY-.6,HZZ), new THREE.Vector3(HX0,HY+HSCALE+1.2,HZZ)]);
-  const m=new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.6});
-  const l=new THREE.Line(g,m); HZG.add(l); return m;
-})();
-function updateHorizon(){
-  const row=D.hz[S.i]||[], pa=hzLine.g.attributes.position.array;
-  const bp=bandGeo.attributes.position.array;
-  for(let k=0;k<hzPts;k++){
-    const x=HX0+HSPAN*(k/(hzPts-1)), y=HY+((row[k]||0)/10)/HZ_MAX*HSCALE;
-    pa[k*3]=x; pa[k*3+1]=y; pa[k*3+2]=HZZ;
-    bp[k*6]=x;   bp[k*6+1]=HY; bp[k*6+2]=HZZ;
-    bp[k*6+3]=x; bp[k*6+4]=y;  bp[k*6+5]=HZZ;
-  }
-  hzLine.g.attributes.position.needsUpdate=true;
-  bandGeo.attributes.position.needsUpdate=true;
-  const q=pastLine.g.attributes.position.array;
-  for(let k=0;k<pastPts;k++){
-    const src=Math.max(0,S.i-(pastPts-1-k));
-    q[k*3]=HX_PAST+PASTDX*k;
-    q[k*3+1]=HY+(D.meas[src]/HZ_MAX)*HSCALE;
-    q[k*3+2]=HZZ;
-  }
-  pastLine.g.attributes.position.needsUpdate=true;
-}
-
 // ================= labels =================
 const overlay=document.getElementById("overlay");
 function mkTag(cls,txt){
@@ -557,21 +750,20 @@ function mkTag(cls,txt){
   d.textContent=txt||""; overlay.appendChild(d); return d;
 }
 const tags=[
-  {el:mkTag("pvt"),  at:new THREE.Vector3(HX_NOW+HSPAN*0.55,HY+HSCALE+2.0,HZZ), ch:[1], f:()=>"6시간 앞 예측 · Transformer"},
-  {el:mkTag(),       at:new THREE.Vector3(HX_PAST+2.5,HY+HSCALE+2.0,HZZ),       ch:[1], f:()=>"실측"},
-  {el:mkTag(),       at:new THREE.Vector3(HX_NOW,HY+HSCALE+2.0,HZZ),            ch:[1], f:()=>"now"},
   {el:mkTag("pvt"),  at:new THREE.Vector3(-17,HTOP+2.4,-14),                 ch:[1,3], f:()=>`옥상 PV ${S.pv.toFixed(0)} kW`},
   {el:mkTag("cool"), at:new THREE.Vector3(20.5,HTOP+2.0,-13.4),              ch:[2,3], f:()=>`EHP ${S.pc.toFixed(0)} kW`},
-  {el:mkTag("cool"), at:new THREE.Vector3(12.5,BASE+2*FH+1.4,4),             ch:[2],   f:()=>`실내 ${S.rt.toFixed(1)}°C`},
+  {el:mkTag("cool"), at:new THREE.Vector3(16.1,BASE+2*FH+2.6,-10),          ch:[2],   f:()=>`실내 ${S.rt.toFixed(1)}°C`},
   {el:mkTag(),       at:new THREE.Vector3(TX,19,TZ),                         ch:[3],   f:()=>`계통 ${S.gi.toFixed(0)} kW`}
 ];
 
 // ================= camera =================
+const OFF=BASE+2*FH;                 // 3층 바닥 — 사무실이 놓이는 층
 const CH={
-  1:{th:0.451,ph:1.045,r:80, tx:0, ty:12,tz:-8},   // 지붕과 예측 리본
-  2:{th:-0.633,ph:1.077,r:42, tx:14,ty:7, tz:0},    // 중정에서 커터웨이 안쪽
-  3:{th:0.544,ph:1.093,r:113,tx:10,ty:10,tz:-6}    // 철탑까지 들어오는 전경
+  1:{th:0.52,ph:0.80, r:76,tx:4,    ty:9,      tz:-10,fov:38}, // 지붕 어레이 + 건물 전체
+  2:{th:0.0, ph:1.49, r:14, tx:16.25,ty:OFF+1.0,tz:-12,fov:52}, // 사무실 안 — 실내용 광각
+  3:{th:0.56,ph:1.03, r:118,tx:8,   ty:9,      tz:-4, fov:38}  // 캠퍼스 전경
 };
+let fov=CH[1].fov;
 let chap=1, tgt=Object.assign({},CH[1]);
 let th=CH[1].th, ph=CH[1].ph, rad=CH[1].r;
 const look=new THREE.Vector3(CH[1].tx,CH[1].ty,CH[1].tz);
@@ -580,25 +772,29 @@ function placeCam(dt){
   const k=Math.min(1,dt*0.0032);
   th+=(tgt.th-th)*k; ph+=(tgt.ph-ph)*k; rad+=(tgt.r-rad)*k;
   look.x+=(tgt.tx-look.x)*k; look.y+=(tgt.ty-look.y)*k; look.z+=(tgt.tz-look.z)*k;
-  camera.position.set(rad*Math.sin(ph)*Math.sin(th), rad*Math.cos(ph), rad*Math.sin(ph)*Math.cos(th));
+  const nf=tgt.fov||38;
+  if(Math.abs(fov-nf)>.05){ fov+=(nf-fov)*k; camera.fov=fov; camera.updateProjectionMatrix(); }
+  camera.position.set(look.x + rad*Math.sin(ph)*Math.sin(th),
+                      look.y + rad*Math.cos(ph),
+                      look.z + rad*Math.sin(ph)*Math.cos(th));
   camera.lookAt(look);
 }
 cv.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY};spin=false;
   cv.classList.add("drag");cv.setPointerCapture(e.pointerId);});
 cv.addEventListener("pointermove",e=>{ if(!drag) return;
   tgt.th=(th-=(e.clientX-drag.x)*0.0068);
-  tgt.ph=(ph=Math.min(1.42,Math.max(.12,ph-(e.clientY-drag.y)*0.0056)));
+  tgt.ph=(ph=Math.min(1.56,Math.max(.10,ph-(e.clientY-drag.y)*0.0056)));
   drag={x:e.clientX,y:e.clientY};});
 ["pointerup","pointercancel"].forEach(ev=>cv.addEventListener(ev,()=>{drag=null;cv.classList.remove("drag");}));
 cv.addEventListener("wheel",e=>{e.preventDefault();
-  tgt.r=(rad=Math.min(130,Math.max(24,rad+e.deltaY*0.045)));},{passive:false});
+  tgt.r=(rad=Math.min(190,Math.max(5,rad+e.deltaY*0.045)));},{passive:false});
 
 function setChapter(n){
   chap=n; tgt=Object.assign({},CH[n]); spin=false;
   document.body.dataset.ch=n;
   document.querySelectorAll("#chapters button").forEach(b=>
     b.setAttribute("aria-pressed", b.dataset.ch===String(n)?"true":"false"));
-  HZG.visible = (n===1);
+  drawChart();
 }
 
 function resize(){
@@ -613,11 +809,10 @@ function applyTheme(){
   const d=cssv("--bg").toLowerCase().startsWith("#0b");
   const ec=new THREE.Color(d?0x93a6bd:0x1b2430);
   edgeMats.forEach(m=>m.color.copy(ec));
-  groundMat.color.set(d?0x27322a:0x6f7a64);
-  paveMat.color.set(d?0x3a414a:0x9a9ea3);
-  lawnMat.color.set(d?0x3b3e2c:0x7d7a52);
+  groundMat.color.set(d?0x1f2a22:0x53604a);
+  paveMat.color.set(d?0x30363d:0x7e838a);
+  lawnMat.color.set(d?0x33351f:0x61623c);
   hemi.groundColor.set(d?0x1a2028:0x4a5568);
-  pastLine.m.color.set(d?0xdfe6ee:0x37414d);
   drawTrack();
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyTheme);
@@ -630,11 +825,14 @@ const SKY=[[0,"#070b14","#101a2b"],[5,"#101a2b","#2d3350"],[6.5,"#3e4668","#c98a
 function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
   const A=p(a),B=p(b);return "#"+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,"0")).join("");}
 let lastSky=-1;
-function setSky(h){
-  if(Math.abs(h-lastSky)<.08) return; lastSky=h;
+let lastCc=-1;
+function setSky(h,cc){
+  if(Math.abs(h-lastSky)<.08 && Math.abs(cc-lastCc)<.04) return;
+  lastSky=h; lastCc=cc;
   let k=0; while(k<SKY.length-2 && h>SKY[k+1][0]) k++;
   const t=(h-SKY[k][0])/(SKY[k+1][0]-SKY[k][0]);
-  const top=mix(SKY[k][1],SKY[k+1][1],t), bot=mix(SKY[k][2],SKY[k+1][2],t);
+  let top=mix(SKY[k][1],SKY[k+1][1],t), bot=mix(SKY[k][2],SKY[k+1][2],t);
+  top=mix(top,"#7c838c",cc*.72); bot=mix(bot,"#aeb3b8",cc*.72);   // 흐릴수록 회색으로
   skyEl.style.background=`linear-gradient(${top} 0%, ${bot} 68%, ${mix(bot,"#2a2f28",.45)} 100%)`;
 }
 
@@ -676,6 +874,84 @@ track.addEventListener("pointerdown",e=>{scrub=true;seek(e.clientX);track.setPoi
 track.addEventListener("pointermove",e=>{if(scrub)seek(e.clientX);});
 ["pointerup","pointercancel"].forEach(ev=>track.addEventListener(ev,()=>{scrub=false;}));
 
+// ================= forecast chart =================
+const fcC=document.getElementById("fcChart"), fx=fcC.getContext("2d");
+const PAST_N=12;                              // 과거 3시간
+const YMAX=Math.ceil(Math.max(PANEL_MAX,HZ_MAX)/10)*10;
+function drawChart(){
+  const w=fcC.clientWidth, h=188, dpr=Math.min(devicePixelRatio||1,2);
+  if(!w) return;
+  fcC.width=w*dpr; fcC.height=h*dpr; fx.setTransform(dpr,0,0,dpr,0,0);
+  fx.clearRect(0,0,w,h);
+  const L=38, R=8, T=10, B=20, pw=w-L-R, phh=h-T-B;
+  const i=S.i, span=PAST_N+HZ;                       // 3시간 과거 + 6시간 예측
+  const X=k=>L+(k/span)*pw;                          // k=0 → i-PAST_N
+  const Y=v=>T+phh-(Math.min(v,YMAX)/YMAX)*phh;
+  const line=cssv("--line"), muted=cssv("--muted"), fg=cssv("--fg"), pv=cssv("--pv");
+
+  // 눈금
+  fx.strokeStyle=line; fx.fillStyle=muted; fx.lineWidth=1;
+  fx.font='9px "IBM Plex Mono", monospace'; fx.textAlign="right"; fx.textBaseline="middle";
+  for(let g=0;g<=4;g++){
+    const v=YMAX*g/4, y=Y(v);
+    fx.beginPath(); fx.moveTo(L,y+.5); fx.lineTo(w-R,y+.5); fx.stroke();
+    fx.fillText(v.toFixed(0), L-6, y);
+  }
+
+  // 시각 눈금 (정시마다)
+  fx.textAlign="center"; fx.textBaseline="top";
+  for(let k=0;k<=span;k++){
+    const idx=i-PAST_N+k;
+    if(idx<0||idx>=N) continue;
+    const d=new Date(T0.getTime()+idx*STEP*60000);
+    if(d.getMinutes()!==0 || d.getHours()%2) continue;
+    fx.strokeStyle=line; fx.beginPath();
+    fx.moveTo(X(k)+.5,T); fx.lineTo(X(k)+.5,T+phh); fx.stroke();
+    fx.fillStyle=muted; fx.fillText(String(d.getHours()).padStart(2,"0"), X(k), T+phh+4);
+  }
+
+  // 갱신되기 전 예측들 — 호라이즌이 밀리는 모습
+  [8,4].forEach((back,n)=>{
+    const row=D.hz[Math.max(0,i-back)]; if(!row) return;
+    fx.strokeStyle=pv; fx.globalAlpha=.20+n*.12; fx.lineWidth=1;
+    fx.beginPath();
+    for(let k=0;k<HZ;k++){
+      const xk=PAST_N-back+1+k; if(xk<0) continue;
+      const x=X(xk), y=Y(row[k]/10);
+      xk===Math.max(0,back-PAST_N-1)||k===0?fx.moveTo(x,y):fx.lineTo(x,y);
+    }
+    fx.stroke(); fx.globalAlpha=1;
+  });
+
+  // 현재 예측 (면적 + 선)
+  const cur=D.hz[i]||[];
+  fx.beginPath(); fx.moveTo(X(PAST_N),Y(0));
+  for(let k=0;k<HZ;k++) fx.lineTo(X(PAST_N+k),Y(cur[k]/10));
+  fx.lineTo(X(PAST_N+HZ-1),Y(0)); fx.closePath();
+  fx.fillStyle=pv; fx.globalAlpha=.16; fx.fill(); fx.globalAlpha=1;
+  fx.beginPath();
+  for(let k=0;k<HZ;k++){ const x=X(PAST_N+k),y=Y(cur[k]/10); k?fx.lineTo(x,y):fx.moveTo(x,y); }
+  fx.strokeStyle=pv; fx.lineWidth=1.8; fx.stroke();
+
+  // 실측 (과거)
+  fx.beginPath();
+  for(let k=0;k<=PAST_N;k++){
+    const idx=i-PAST_N+k; if(idx<0) continue;
+    const x=X(k), y=Y(D.meas[idx]);
+    k?fx.lineTo(x,y):fx.moveTo(x,y);
+  }
+  fx.strokeStyle=fg; fx.lineWidth=1.6; fx.stroke();
+
+  // now
+  fx.strokeStyle=fg; fx.globalAlpha=.55; fx.setLineDash([3,3]); fx.lineWidth=1;
+  fx.beginPath(); fx.moveTo(X(PAST_N),T); fx.lineTo(X(PAST_N),T+phh); fx.stroke();
+  fx.setLineDash([]); fx.globalAlpha=1;
+  fx.fillStyle=fg; fx.textAlign="left"; fx.textBaseline="top";
+  fx.fillText("now", X(PAST_N)+4, T+1);
+  fx.fillStyle=muted; fx.textAlign="right";
+  fx.fillText("+6h", w-R-2, T+1);
+}
+
 // ================= HUD =================
 const $=id=>document.getElementById(id);
 const DAY=["일","월","화","수","목","금","토"];
@@ -705,7 +981,9 @@ function updateHUD(){
   $("mPc").innerHTML=U(S.pc,1,"kW");
   $("mPcSub").textContent=S.mode===1?"냉방 운전":(S.mode===2?"난방 운전":"정지");
   $("mRt").innerHTML=U(S.rt,1,"°C");
-  $("mRtSub").textContent=`외기 ${nf(S.oat,1)}°C`+(S.rtm!=null?` · 센서 ${nf(S.rtm,1)}°C`:"");
+  $("mRtSub").textContent=`외기 ${nf(S.at,1)}°C`+(S.rtm!=null?` · 센서 ${nf(S.rtm,1)}°C`:"");
+  const sky=S.cc<.2?"맑음":S.cc<.45?"구름 조금":S.cc<.75?"구름 많음":"흐림";
+  $("wx").textContent=`${sky} · 구름 ${Math.round(S.cc*100)}% · 일사 ${nf(S.sghi,0)} W/m²`;
   $("mCost").innerHTML=U(Math.round(S.cost),0,"원");
   $("mCostSub").textContent=`${S.i===0?0:Math.round(S.cost/(S.i/96+1e-4)).toLocaleString("ko-KR")} 원/일`;
 
@@ -717,11 +995,11 @@ function updateHUD(){
 
   $("fcV").textContent=nf(S.fc,1)+" W";
   $("msV").textContent=nf(S.meas,1)+" W";
-  $("fcB").style.width=Math.min(100,S.fc/PANEL_MAX*100)+"%";
-  $("msB").style.width=Math.min(100,S.meas/PANEL_MAX*100)+"%";
   const e=S.meas-S.fc;
-  $("fcNote").textContent=(S.fc<1&&S.meas<1)?`야간 · 일사량 ${nf(S.ghi,0)} W/m²`
-    :`오차 ${e>=0?"+":""}${nf(e,1)} W · 일사량 ${nf(S.ghi,0)} W/m²`;
+  $("fcNote").textContent=(S.fc<1&&S.meas<1)
+    ? `야간 · 구름량 ${Math.round(S.cc*100)}% · 기온 ${nf(S.at,1)}°C`
+    : `오차 ${e>=0?"+":""}${nf(e,1)} W · 일사량 ${nf(S.sghi,0)} W/m² · 구름량 ${Math.round(S.cc*100)}%`;
+  if(chap===1) drawChart();
 }
 
 const vP=new THREE.Vector3();
@@ -743,29 +1021,42 @@ const cCold=new THREE.Color(0x3f7fc4),cOk=new THREE.Color(0x49a583),cHot=new THR
 const tc=new THREE.Color();
 function updateScene(dt){
   const hr=S.date.getHours()+S.date.getMinutes()/60;
-  setSky(hr);
   const a=(hr-6)/12*Math.PI, up=Math.sin(a), day=up>0;
+  const cc=S.cc;                                  // 0 맑음 → 1 완전 흐림
+  setSky(hr,cc);
   sun.position.set(Math.cos(a)*60,Math.max(2,up*48),22);
   sunBall.position.copy(sun.position).multiplyScalar(.9);
   sunBall.material.color.set(day?0xffe9b0:0xbfc8d8);
+  sunBall.material.transparent=true;
+  sunBall.material.opacity=Math.max(0,1-cc*1.35);
   sunBall.scale.setScalar(day?1:.5);
-  sun.intensity=day?.35+up*.85:.05;
-  hemi.intensity=day?.45+up*.4:.22;
-  fillL.intensity=day?.22:.1;
+  sun.intensity=(day?.30+up*1.25:.04)*(1-.80*cc);  // 흐릴수록 직달광이 줄고
+  sun.castShadow=cc<.75;                          //   그림자도 사라진다
+  hemi.intensity=(day?.10+up*.46:.07)*(1+.40*cc);  //   대신 확산광이 늘어난다
+  fillL.intensity=(day?.05+up*.16:.04)*(1+.5*cc);
+  officeLights.forEach(L=>{ L.intensity=(chap===2?0.40:0.18)*(day?0.70:1.20); });
+  clouds.forEach(c=>{
+    c.th+=c.sp*dt*.02;
+    c.m.position.x+=Math.cos(c.th)*dt*.0018;
+    c.m.position.z+=Math.sin(c.th)*dt*.0018;
+    c.m.material.opacity=Math.min(.82,Math.max(0,(cc-.12)*1.15))*(day?1:.4);
+    c.m.material.color.setScalar(day?1-.26*cc:.5);
+  });
 
   const dev=S.rt<S.cl?(S.rt-S.cl):(S.rt>S.ch?S.rt-S.ch:0);
   tc.copy(cOk);
   if(dev<0) tc.lerp(cCold,Math.min(1,-dev/1.5)); else if(dev>0) tc.lerp(cHot,Math.min(1,dev/1.5));
   const lit=day?.06:.3;
-  roomMats.forEach(m=>{
+  roomMats.forEach((m,k)=>{
     m.color.copy(tc).lerp(new THREE.Color(0x8a9bb0),.4);
     m.emissive.copy(tc).multiplyScalar(lit+(S.mode===1?.12:0));
+    m.opacity=(chap===2&&k===2)?.07:.24;        // 들어가 있는 층은 거의 투명하게
   });
 
   const pf=PV_MAX?S.pv/PV_MAX:0, curt=S.cur>.05;
   pvMats.forEach(m=>{
-    m.color.setRGB(.09+pf*.22,.15+pf*.42,.24+pf*.22);
-    m.emissive.setRGB(curt?pf*.3:0,pf*.22,pf*.1);
+    m.color.setRGB(.050+pf*.055,.075+pf*.095,.135+pf*.150);
+    m.emissive.setRGB(curt?pf*.26:0, pf*.055, pf*.115);
   });
 
   const run=S.mode===1||S.mode===2, cf=PC_MAX?S.pc/PC_MAX:0;
@@ -789,11 +1080,10 @@ function updateScene(dt){
 
   stepFlow(flowPv,PV_MAX?S.pv/PV_MAX:0,dt);
   stepFlow(flowGi,GI_MAX?S.gi/GI_MAX:0,dt);
-  if(HZG.visible){ updateHorizon(); nowPost.opacity=.35+.25*Math.sin(performance.now()*.003); }
 }
 
 // ================= loop =================
-let pos=0, rate=240, playing=true, last=performance.now();
+let pos=3*96+48, rate=240, playing=true, last=performance.now();  // 10/02 12:00 (구름 0.29, 가장 맑은 날)
 function frame(now){
   const dt=Math.max(0,Math.min(120,now-last)); last=now;
   if(playing&&!scrub){ pos+=(rate*dt/1000)/STEP; if(pos>=N-1) pos=0; }
@@ -820,7 +1110,7 @@ addEventListener("keydown",e=>{
   if("123".includes(e.key)) setChapter(+e.key);
 });
 
-setChapter(1); applyTheme(); resize(); sample(0); updateHUD();
+setChapter(1); applyTheme(); resize(); sample(pos); updateHUD();
 requestAnimationFrame(frame);
 })();
 </script>
