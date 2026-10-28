@@ -1,0 +1,14 @@
+# 원본 DB·로그는 절대 올리지 않는다 (용량 + API 키 노출 위험)
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.zip
+solcast_api_key.txt
+
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

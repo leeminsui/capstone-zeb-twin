@@ -1,0 +1,667 @@
+<title>제로에너지빌딩 리플레이</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<style>
+/* Layout: 3D stage fills the frame; translucent instrument slabs float over it, scrub rail pinned low */
+:root{
+  --bg:#e8eaee;
+  --slab:rgba(255,255,255,.80);
+  --slab-solid:#ffffff;
+  --line:rgba(22,30,42,.16);
+  --fg:#141a24;
+  --muted:#5b6673;
+  --pv:#0b7a57;
+  --grid-c:#9d5a12;
+  --cool:#1f6fb5;
+  --warn:#a62f26;
+  --ink:#1b2430;
+  --font-ui:"IBM Plex Sans KR",system-ui,sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0f14; --slab:rgba(13,19,27,.74); --slab-solid:#0f151d;
+    --line:rgba(176,196,220,.20); --fg:#e8eef6; --muted:#8e9bab;
+    --pv:#3ddba4; --grid-c:#f0ad53; --cool:#64b5f0; --warn:#ff7265; --ink:#05080c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0f14; --slab:rgba(13,19,27,.74); --slab-solid:#0f151d;
+  --line:rgba(176,196,220,.20); --fg:#e8eef6; --muted:#8e9bab;
+  --pv:#3ddba4; --grid-c:#f0ad53; --cool:#64b5f0; --warn:#ff7265; --ink:#05080c;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);overflow:hidden}
+#app{position:relative;height:100%;overflow:hidden}
+
+#sky{position:absolute;inset:0;transition:background .9s linear}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#scene.drag{cursor:grabbing}
+
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ---------- clock ---------- */
+#clock{
+  position:absolute;
+  top:max(14px,env(safe-area-inset-top,0px));
+  left:max(16px,env(safe-area-inset-left,0px));
+  pointer-events:none;
+}
+#date{font-size:12px;color:var(--muted);letter-spacing:.04em}
+#time{font-size:40px;font-weight:700;line-height:1.02;letter-spacing:-.01em;
+      text-shadow:0 1px 14px rgba(0,0,0,.28)}
+#phase{font-size:11px;color:var(--muted);margin-top:1px}
+
+/* ---------- metric slab ---------- */
+#metrics{
+  position:absolute;
+  top:max(14px,env(safe-area-inset-top,0px));
+  right:max(16px,env(safe-area-inset-right,0px));
+  width:216px;background:var(--slab);border:1px solid var(--line);border-radius:5px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  display:flex;flex-direction:column;
+}
+.m{display:flex;flex-direction:column;gap:1px;padding:8px 11px;border-bottom:1px solid var(--line)}
+.m:last-child{border-bottom:0}
+.m .v{font-size:21px;font-weight:600;line-height:1.1}
+.m .v .u{font-size:10px;color:var(--muted);font-weight:400;margin-left:2px}
+.m .sub{font-size:10px;color:var(--muted)}
+.m.pv .v{color:var(--pv)}
+.m.gi .v{color:var(--grid-c)}
+.m.cool .v{color:var(--cool)}
+
+/* comfort meter */
+#band{position:relative;height:5px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}
+#bandOk{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--pv) 42%,transparent)}
+#bandDot{position:absolute;top:-2px;width:2px;height:9px;background:var(--fg);border-radius:1px}
+
+/* ---------- forecast card ---------- */
+#fcCard{
+  position:absolute;
+  left:max(16px,env(safe-area-inset-left,0px));
+  bottom:calc(104px + env(safe-area-inset-bottom,0px));
+  width:208px;background:var(--slab);border:1px solid var(--line);border-radius:5px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:9px 11px 10px;
+}
+.fcrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:5px}
+.fcrow .k{font-size:11px;color:var(--muted)}
+.fcrow .v{font-size:15px;font-weight:600}
+#fcBars{display:flex;flex-direction:column;gap:3px;margin-top:7px}
+.fcbar{height:6px;border-radius:2px;background:var(--line);overflow:hidden}
+.fcbar i{display:block;height:100%;border-radius:2px}
+#fcNote{font-size:10px;color:var(--muted);margin-top:7px;line-height:1.45}
+
+/* ---------- scrub rail ---------- */
+#rail{
+  position:absolute;left:0;right:0;
+  bottom:env(safe-area-inset-bottom,0px);
+  background:var(--slab);border-top:1px solid var(--line);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:8px 9px;
+  display:flex;flex-direction:column;gap:6px;
+}
+#track{width:100%;height:50px;display:block;cursor:pointer;touch-action:none}
+#bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+button{
+  font-family:var(--font-ui);font-size:11.5px;font-weight:500;color:var(--fg);
+  background:transparent;border:1px solid var(--line);border-radius:3px;
+  padding:5px 10px;cursor:pointer;
+}
+button:hover{border-color:var(--muted)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible{outline:2px solid var(--pv);outline-offset:2px}
+#play{min-width:62px;font-weight:600}
+.spacer{flex:1 1 auto;min-width:0}
+#legend{display:flex;gap:11px;font-size:10px;color:var(--muted);align-items:center}
+#legend i{display:inline-block;width:9px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+
+#hint{
+  position:absolute;
+  bottom:calc(104px + env(safe-area-inset-bottom,0px));
+  right:max(16px,env(safe-area-inset-right,0px));
+  font-size:10px;color:var(--muted);pointer-events:none;text-align:right;line-height:1.5;
+}
+
+@media (max-width:820px){
+  #metrics{width:150px}
+  .m .v{font-size:17px}
+  #time{font-size:30px}
+  #fcCard{display:none}
+  #legend{display:none}
+}
+</style>
+
+<div id="app">
+  <div id="sky"></div>
+  <canvas id="scene"></canvas>
+
+  <div id="clock">
+    <div id="date" class="num">—</div>
+    <div id="time" class="num">—</div>
+    <div id="phase">—</div>
+  </div>
+
+  <div id="metrics">
+    <div class="m pv">
+      <div class="eyebrow">태양광 발전</div>
+      <div class="v num" id="mPv">—<span class="u">kW</span></div>
+      <div class="sub" id="mPvSub">—</div>
+    </div>
+    <div class="m">
+      <div class="eyebrow">건물 부하</div>
+      <div class="v num" id="mLd">—<span class="u">kW</span></div>
+      <div class="sub" id="mLdSub">—</div>
+    </div>
+    <div class="m gi">
+      <div class="eyebrow">계통 수전</div>
+      <div class="v num" id="mGi">—<span class="u">kW</span></div>
+      <div class="sub" id="mGiSub">—</div>
+    </div>
+    <div class="m cool">
+      <div class="eyebrow">EHP 냉방</div>
+      <div class="v num" id="mPc">—<span class="u">kW</span></div>
+      <div class="sub" id="mPcSub">—</div>
+    </div>
+    <div class="m">
+      <div class="eyebrow">실내 / 외기</div>
+      <div class="v num" id="mRt">—<span class="u">°C</span></div>
+      <div class="sub" id="mRtSub">—</div>
+      <div id="band"><div id="bandOk"></div><div id="bandDot"></div></div>
+    </div>
+    <div class="m">
+      <div class="eyebrow">누적 전기요금</div>
+      <div class="v num" id="mCost">—<span class="u">원</span></div>
+      <div class="sub" id="mCostSub">—</div>
+    </div>
+  </div>
+
+  <div id="fcCard">
+    <div class="eyebrow">대전 패널 · 예측 대 실측</div>
+    <div class="fcrow"><span class="k">예측</span><span class="v num" id="fcV">—</span></div>
+    <div class="fcbar"><i id="fcB" style="background:var(--pv)"></i></div>
+    <div class="fcrow"><span class="k">실측</span><span class="v num" id="msV">—</span></div>
+    <div class="fcbar"><i id="msB" style="background:var(--fg)"></i></div>
+    <div id="fcNote">—</div>
+  </div>
+
+  <div id="hint">드래그 회전 · 휠 확대<br>타임라인 클릭으로 이동</div>
+
+  <div id="rail">
+    <canvas id="track"></canvas>
+    <div id="bar">
+      <button id="play" type="button">일시정지</button>
+      <button class="sp" data-rate="60" type="button">1h/s</button>
+      <button class="sp" data-rate="240" type="button" aria-pressed="true">4h/s</button>
+      <button class="sp" data-rate="720" type="button">12h/s</button>
+      <div class="spacer"></div>
+      <div id="legend">
+        <span><i style="background:var(--pv)"></i>발전</span>
+        <span><i style="background:var(--grid-c)"></i>수전</span>
+        <span><i style="background:var(--cool)"></i>냉방</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="data/zeb_window.js"></script>
+<script>
+(function(){
+"use strict";
+const D = window.ZEB_DATA;
+const N = D.n, STEP = D.step_min;
+const T0 = new Date(D.start + "+09:00");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---- fill gaps so playback never stutters on a missing step ----
+function fill(a){
+  let last = null;
+  for(let i=0;i<a.length;i++){ if(a[i]===null||a[i]===undefined) a[i]=last; else last=a[i]; }
+  last = null;
+  for(let i=a.length-1;i>=0;i--){ if(a[i]===null||a[i]===undefined) a[i]=last; else last=a[i]; }
+  for(let i=0;i<a.length;i++) if(a[i]===null||a[i]===undefined) a[i]=0;
+  return a;
+}
+["rt","oat","pc","ph","ld","gi","pvs","cur","pr","cost","cl","ch","fc","meas","ghi","ptemp"].forEach(k=>fill(D[k]));
+const hasRtm = D.rtm.some(v=>v!==null);
+
+const MX = k => D[k].reduce((a,b)=>Math.max(a,b||0),0);
+const PV_MAX = MX("pvs"), LD_MAX = MX("ld"), GI_MAX = MX("gi"), PC_MAX = MX("pc");
+const PANEL_MAX = Math.max(MX("fc"), MX("meas"));
+const COST_CUM = (()=>{ const c=[]; let s=0; for(let i=0;i<N;i++){ s+=D.cost[i]/4; c.push(s);} return c; })();
+
+// ---- interpolated sample at fractional index ----
+const S = {};
+function sample(x){
+  const i = Math.max(0, Math.min(N-1, Math.floor(x)));
+  const j = Math.min(N-1, i+1), f = x - i;
+  const L = k => D[k][i] + (D[k][j]-D[k][i])*f;
+  S.rt=L("rt"); S.oat=L("oat"); S.pc=L("pc"); S.ph=L("ph"); S.ld=L("ld");
+  S.gi=L("gi"); S.pv=L("pvs"); S.cur=L("cur"); S.pr=L("pr");
+  S.cl=L("cl"); S.ch=L("ch"); S.fc=L("fc"); S.meas=L("meas"); S.ghi=L("ghi");
+  S.mode=D.mode[i]; S.cost=COST_CUM[i]; S.rtm=D.rtm[i]; S.i=i;
+  S.date = new Date(T0.getTime() + x*STEP*60000);
+}
+
+// ================= scene =================
+const cv = document.getElementById("scene"), app = document.getElementById("app");
+const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x4a5568, 0.7); scene.add(hemi);
+const sunLight = new THREE.DirectionalLight(0xfff0d8, 1.0); scene.add(sunLight);
+const fillLight = new THREE.DirectionalLight(0x9fc0e8, 0.25);
+fillLight.position.set(-14, 9, -11); scene.add(fillLight);
+
+const world = new THREE.Group(); scene.add(world);
+const edgeMats = [];
+function addEdges(geo, parent, op){
+  const m = new THREE.LineBasicMaterial({color:0x1b2430, transparent:true, opacity:op||0.4});
+  edgeMats.push(m);
+  parent.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), m));
+}
+
+// ground
+const groundMat = new THREE.MeshStandardMaterial({color:0x6f7a64, roughness:1});
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 56), groundMat);
+ground.rotation.x = -Math.PI/2; world.add(ground);
+const plazaMat = new THREE.MeshStandardMaterial({color:0x9aa0a6, roughness:.95});
+const plaza = new THREE.Mesh(new THREE.CircleGeometry(17, 48), plazaMat);
+plaza.rotation.x = -Math.PI/2; plaza.position.y = 0.02; world.add(plaza);
+
+// --- building ---
+const FLOORS = 4, FW = 11, FD = 8, FH = 2.6, SLAB = 0.26;
+const slabGeo = new THREE.BoxGeometry(FW+1.3, 0.4, FD+1.3);
+const base = new THREE.Mesh(slabGeo, new THREE.MeshStandardMaterial({color:0x8d949c, roughness:.95}));
+base.position.y = 0.2; addEdges(slabGeo, base); world.add(base);
+
+const glass = [];
+for(let k=0;k<FLOORS;k++){
+  const y = 0.4 + k*(FH+SLAB) + FH/2;
+  const g = new THREE.BoxGeometry(FW, FH, FD);
+  const mat = new THREE.MeshStandardMaterial({
+    color:0x6f8ba6, transparent:true, opacity:.72, roughness:.28, metalness:.12,
+    emissive:new THREE.Color(0x000000)
+  });
+  const m = new THREE.Mesh(g, mat); m.position.y = y;
+  addEdges(g, m, .3); world.add(m); glass.push(mat);
+
+  const sg = new THREE.BoxGeometry(FW+0.5, SLAB, FD+0.5);
+  const sm = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({color:0xb9bec4, roughness:.9}));
+  sm.position.y = y + FH/2 + SLAB/2; world.add(sm);
+}
+const ROOF = 0.4 + FLOORS*(FH+SLAB);
+
+// --- roof PV array ---
+const pvMats = [], pvMeshes = [];
+for(let r=0;r<3;r++) for(let c=0;c<4;c++){
+  const g = new THREE.BoxGeometry(2.3, 0.1, 1.5);
+  const mt = new THREE.MeshStandardMaterial({color:0x16263d, roughness:.3, metalness:.5,
+                                             emissive:new THREE.Color(0x000000)});
+  const p = new THREE.Mesh(g, mt);
+  p.position.set(-3.9 + c*2.6, ROOF + 0.72, -2.4 + r*2.4);
+  p.rotation.x = -22*Math.PI/180;
+  addEdges(g, p, .28); world.add(p); pvMats.push(mt); pvMeshes.push(p);
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(.1,.62,.1),
+              new THREE.MeshStandardMaterial({color:0x79818a, roughness:.85}));
+  leg.position.set(p.position.x, ROOF+0.31, p.position.z); world.add(leg);
+}
+
+// --- EHP outdoor units on roof ---
+const ehp = [];
+for(let i=0;i<3;i++){
+  const g = new THREE.BoxGeometry(1.5, 1.5, 1.0);
+  const mt = new THREE.MeshStandardMaterial({color:0x99a1aa, roughness:.75});
+  const u = new THREE.Mesh(g, mt);
+  u.position.set(FW/2 - 1.3, ROOF + 0.75, -2.6 + i*2.6);
+  addEdges(g, u, .3); world.add(u);
+  const fan = new THREE.Mesh(new THREE.TorusGeometry(.4,.055,8,22),
+              new THREE.MeshStandardMaterial({color:0x4e565e, roughness:.6}));
+  fan.position.set(u.position.x + 0.53, u.position.y + .12, u.position.z);
+  fan.rotation.y = Math.PI/2; world.add(fan);
+  ehp.push({body:mt, fan:fan});
+}
+
+// --- the real Daejeon reference panel, on the plaza ---
+const refGeo = new THREE.BoxGeometry(2.0, 0.08, 1.3);
+const refMat = new THREE.MeshStandardMaterial({color:0x16263d, roughness:.3, metalness:.5,
+                                               emissive:new THREE.Color(0x000000)});
+const refPanel = new THREE.Mesh(refGeo, refMat);
+refPanel.position.set(-12.5, 1.5, 5.5); refPanel.rotation.x = -28*Math.PI/180;
+addEdges(refGeo, refPanel, .3); world.add(refPanel);
+const refPost = new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.5,8),
+                new THREE.MeshStandardMaterial({color:0x79818a, roughness:.85}));
+refPost.position.set(-12.5, .75, 5.5); world.add(refPost);
+
+// --- grid tower ---
+const towerX = 20, towerZ = -3;
+const tMat = new THREE.MeshStandardMaterial({color:0x6e7681, roughness:.9});
+for(let i=0;i<2;i++){
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,11,6), tMat);
+  leg.position.set(towerX + (i?0.9:-0.9), 5.5, towerZ); world.add(leg);
+}
+for(let i=0;i<3;i++){
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(4.2,.14,.14), tMat);
+  arm.position.set(towerX, 7.6 + i*1.5, towerZ); world.add(arm);
+}
+(function(){
+  const pts=[]; for(let i=0;i<=24;i++){ const t=i/24;
+    pts.push(new THREE.Vector3(towerX + t*26, 10.6 - Math.sin(t*Math.PI)*1.6, towerZ)); }
+  const lm = new THREE.LineBasicMaterial({color:0x4a5260, transparent:true, opacity:.6});
+  edgeMats.push(lm);
+  world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lm));
+})();
+
+// --- celestial body ---
+const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.5, 20, 16),
+  new THREE.MeshBasicMaterial({color:0xffe9b0}));
+world.add(sunBall);
+
+// --- flows ---
+function makeFlow(curve, color, count){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count*3);
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({color:color, size:.42, transparent:true,
+                                        opacity:.9, depthWrite:false});
+  const pts = new THREE.Points(geo, mat); world.add(pts);
+  return {curve, geo, mat, count, t:new Float32Array(count).map((_,i)=>i/count), pts};
+}
+const pvCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, ROOF+1.0, 0),
+  new THREE.Vector3(-FW/2-2.2, ROOF-1.5, 1.5),
+  new THREE.Vector3(-FW/2-2.6, 3.2, 2.0),
+  new THREE.Vector3(-FW/2+0.4, 1.1, 2.0)
+]);
+const giCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(towerX, 9.4, towerZ),
+  new THREE.Vector3(towerX-5, 6.0, towerZ+0.6),
+  new THREE.Vector3(FW/2+3.0, 2.4, 1.0),
+  new THREE.Vector3(FW/2-0.4, 1.1, 1.0)
+]);
+const flowPv = makeFlow(pvCurve, 0x2fd79b, 42);
+const flowGi = makeFlow(giCurve, 0xf0a94e, 42);
+const vTmp = new THREE.Vector3();
+function stepFlow(fl, frac, dt){
+  const p = fl.geo.attributes.position.array;
+  const spd = (0.00016 + frac*0.00070) * dt;
+  for(let k=0;k<fl.count;k++){
+    fl.t[k] = (fl.t[k] + spd) % 1;
+    fl.curve.getPoint(fl.t[k], vTmp);
+    p[k*3]=vTmp.x; p[k*3+1]=vTmp.y; p[k*3+2]=vTmp.z;
+  }
+  fl.geo.attributes.position.needsUpdate = true;
+  fl.mat.opacity = frac < 0.004 ? 0 : Math.min(.95, .22 + frac*1.3);
+  fl.mat.size = 0.26 + frac*0.42;
+}
+
+// ---- camera orbit ----
+let theta = 0.72, phi = 1.16, radius = 42, spin = !reduced, drag = null;
+function placeCam(){
+  camera.position.set(radius*Math.sin(phi)*Math.sin(theta),
+                      radius*Math.cos(phi),
+                      radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(0, 6.5, 0);
+}
+cv.addEventListener("pointerdown", e=>{ drag={x:e.clientX,y:e.clientY}; spin=false;
+  cv.classList.add("drag"); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e=>{ if(!drag) return;
+  theta -= (e.clientX-drag.x)*0.0068;
+  phi = Math.min(1.44, Math.max(0.16, phi - (e.clientY-drag.y)*0.0056));
+  drag={x:e.clientX,y:e.clientY}; });
+["pointerup","pointercancel"].forEach(ev=>cv.addEventListener(ev, ()=>{ drag=null; cv.classList.remove("drag"); }));
+cv.addEventListener("wheel", e=>{ e.preventDefault();
+  radius = Math.min(78, Math.max(20, radius + e.deltaY*0.03)); }, {passive:false});
+
+function resize(){
+  const w = app.clientWidth, h = app.clientHeight;
+  if(!w||!h) return;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  drawTrack();
+}
+new ResizeObserver(resize).observe(app);
+
+// ---- theme ----
+function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function isDark(){ return cssv("--bg").toLowerCase().startsWith("#0b"); }
+function applyTheme(){
+  const d = isDark();
+  const ec = new THREE.Color(d ? 0x93a6bd : 0x1b2430);
+  edgeMats.forEach(m=>{ m.color.copy(ec); });
+  groundMat.color.set(d ? 0x27322a : 0x6f7a64);
+  plazaMat.color.set(d ? 0x3a414a : 0x9aa0a6);
+  hemi.groundColor.set(d ? 0x1a2028 : 0x4a5568);
+  drawTrack();
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+// ---- sky ----
+const skyEl = document.getElementById("sky");
+const SKY = [
+  [0.0 , "#070b14", "#101a2b"], [5.0 , "#101a2b", "#2d3350"],
+  [6.5 , "#3e4668", "#c98a63"], [8.0 , "#6f8fb8", "#bcd3e6"],
+  [12.0, "#5b8fc9", "#cfe2f2"], [16.5, "#6b93c4", "#d9d2c6"],
+  [18.0, "#4a5878", "#d08a5c"], [19.5, "#1e2740", "#4a4260"],
+  [24.0, "#070b14", "#101a2b"]
+];
+function mixHex(a,b,t){
+  const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const A=p(a),B=p(b);
+  return "#"+[0,1,2].map(i=>Math.round(A[i]+(B[i]-A[i])*t).toString(16).padStart(2,"0")).join("");
+}
+let lastSky = -1;
+function setSky(hour){
+  if(Math.abs(hour-lastSky) < 0.08) return; lastSky = hour;
+  let k=0; while(k<SKY.length-2 && hour > SKY[k+1][0]) k++;
+  const t = (hour-SKY[k][0])/(SKY[k+1][0]-SKY[k][0]);
+  const top = mixHex(SKY[k][1],SKY[k+1][1],t), bot = mixHex(SKY[k][2],SKY[k+1][2],t);
+  skyEl.style.background = `linear-gradient(${top} 0%, ${bot} 68%, ${mixHex(bot,"#2a2f28",.45)} 100%)`;
+}
+
+// ================= timeline =================
+const track = document.getElementById("track"), tctx = track.getContext("2d");
+function drawTrack(){
+  const w = track.clientWidth||600, h = 50, dpr = Math.min(devicePixelRatio||1,2);
+  if(!w) return;
+  track.width = w*dpr; track.height = h*dpr; tctx.setTransform(dpr,0,0,dpr,0,0);
+  tctx.clearRect(0,0,w,h);
+  const line = cssv("--line"), muted = cssv("--muted");
+  const X = i => i/(N-1)*w;
+
+  // cooling ticks
+  tctx.fillStyle = cssv("--cool"); tctx.globalAlpha = .30;
+  for(let i=0;i<N;i++) if(D.mode[i]===1) tctx.fillRect(X(i), h-7, Math.max(1,w/N), 7);
+  tctx.globalAlpha = 1;
+
+  // day separators + labels
+  tctx.strokeStyle = line; tctx.fillStyle = muted;
+  tctx.font = '9px "IBM Plex Mono", monospace'; tctx.textBaseline = "top";
+  for(let d=0; d<14; d++){
+    const x = X(d*96);
+    tctx.beginPath(); tctx.moveTo(x+.5, 0); tctx.lineTo(x+.5, h-8); tctx.stroke();
+    const dt = new Date(T0.getTime() + d*86400000);
+    if(w/14 > 28) tctx.fillText(`${dt.getMonth()+1}/${dt.getDate()}`, x+3, 1);
+  }
+
+  // PV area
+  tctx.beginPath(); tctx.moveTo(0, h-8);
+  for(let i=0;i<N;i++) tctx.lineTo(X(i), h-8 - (D.pvs[i]/PV_MAX)*(h-20));
+  tctx.lineTo(w, h-8); tctx.closePath();
+  tctx.fillStyle = cssv("--pv"); tctx.globalAlpha = .30; tctx.fill(); tctx.globalAlpha = 1;
+
+  // grid import line
+  tctx.beginPath();
+  for(let i=0;i<N;i++){
+    const x=X(i), y=h-8-(D.gi[i]/GI_MAX)*(h-20);
+    i ? tctx.lineTo(x,y) : tctx.moveTo(x,y);
+  }
+  tctx.strokeStyle = cssv("--grid-c"); tctx.lineWidth = 1; tctx.stroke();
+
+  // playhead
+  const px = X(pos);
+  tctx.strokeStyle = cssv("--fg"); tctx.lineWidth = 1.5;
+  tctx.beginPath(); tctx.moveTo(px, 0); tctx.lineTo(px, h); tctx.stroke();
+  tctx.fillStyle = cssv("--fg");
+  tctx.beginPath(); tctx.arc(px, h-4, 3.2, 0, 7); tctx.fill();
+}
+function seek(clientX){
+  const r = track.getBoundingClientRect();
+  pos = Math.max(0, Math.min(N-1, (clientX - r.left)/r.width*(N-1)));
+}
+let scrub = false;
+track.addEventListener("pointerdown", e=>{ scrub = true; seek(e.clientX);
+  track.setPointerCapture(e.pointerId); });
+track.addEventListener("pointermove", e=>{ if(scrub) seek(e.clientX); });
+["pointerup","pointercancel"].forEach(ev=>track.addEventListener(ev, ()=>{ scrub=false; }));
+
+// ================= HUD =================
+const $ = id => document.getElementById(id);
+const DAYS = ["일","월","화","수","목","금","토"];
+const nf = (v,d) => v.toLocaleString("ko-KR",{minimumFractionDigits:d,maximumFractionDigits:d});
+function unit(v,d,u){ return `${nf(v,d)}<span class="u">${u}</span>`; }
+
+function updateHUD(){
+  const dt = S.date;
+  $("date").textContent = `${dt.getFullYear()}. ${String(dt.getMonth()+1).padStart(2,"0")}. ${String(dt.getDate()).padStart(2,"0")} (${DAYS[dt.getDay()]})`;
+  $("time").textContent = `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+  const hr = dt.getHours() + dt.getMinutes()/60;
+  $("phase").textContent = S.pv > 1 ? "발전 중" : (hr<6||hr>19 ? "야간" : "일출 전후");
+
+  $("mPv").innerHTML  = unit(S.pv,1,"kW");
+  $("mPvSub").textContent = S.cur > .05 ? `출력제한 ${nf(S.cur,1)} kW`
+                          : `자가소비율 ${S.ld>0 ? Math.round(Math.min(100, S.pv/S.ld*100)) : 0}%`;
+  $("mLd").innerHTML  = unit(S.ld,1,"kW");
+  $("mLdSub").textContent = `냉방 외 ${nf(Math.max(0,S.ld-S.pc-S.ph),1)} kW`;
+  $("mGi").innerHTML  = unit(S.gi,1,"kW");
+  $("mGiSub").textContent = `요금단가 ${nf(S.pr,1)} 원/kWh`;
+  $("mPc").innerHTML  = unit(S.pc,1,"kW");
+  $("mPcSub").textContent = S.mode===1 ? "냉방 운전" : (S.mode===2 ? "난방 운전" : "정지");
+  $("mRt").innerHTML  = unit(S.rt,1,"°C");
+  $("mRtSub").textContent = `외기 ${nf(S.oat,1)}°C` + (S.rtm!==null ? ` · 센서 ${nf(S.rtm,1)}°C` : "");
+  $("mCost").innerHTML = unit(Math.round(S.cost),0,"원");
+  $("mCostSub").textContent = `${S.i===0?0:Math.round(S.cost/(S.i/96+.0001)).toLocaleString("ko-KR")} 원/일`;
+
+  // comfort band 20~28 °C scale
+  const lo=20, hi=28, pct = v => Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100));
+  const b = $("bandOk");
+  b.style.left = pct(S.cl)+"%"; b.style.width = Math.max(1,pct(S.ch)-pct(S.cl))+"%";
+  $("bandDot").style.left = `calc(${pct(S.rt)}% - 1px)`;
+  $("bandDot").style.background = (S.rt < S.cl-0.1 || S.rt > S.ch+0.1) ? cssv("--warn") : cssv("--fg");
+
+  // forecast vs measured
+  $("fcV").textContent = nf(S.fc,1)+" W";
+  $("msV").textContent = nf(S.meas,1)+" W";
+  $("fcB").style.width = Math.min(100, S.fc/PANEL_MAX*100)+"%";
+  $("msB").style.width = Math.min(100, S.meas/PANEL_MAX*100)+"%";
+  const e = S.meas - S.fc;
+  $("fcNote").textContent = (S.fc<1 && S.meas<1)
+    ? `야간 · 일사량 ${nf(S.ghi,0)} W/m²`
+    : `오차 ${e>=0?"+":""}${nf(e,1)} W · 일사량 ${nf(S.ghi,0)} W/m²`;
+}
+
+// ================= visual binding =================
+const cCold = new THREE.Color(0x3f7fc4), cOk = new THREE.Color(0x49a583), cHot = new THREE.Color(0xd4793a);
+const tmpC = new THREE.Color();
+function updateScene(dt){
+  const hr = S.date.getHours() + S.date.getMinutes()/60;
+  setSky(hr);
+
+  // sun / moon position along an east-west arc
+  const a = (hr-6)/12*Math.PI;
+  const up = Math.sin(a), day = up > 0;
+  const R = 34;
+  sunLight.position.set(Math.cos(a)*R, Math.max(1.5, up*26), 9);
+  sunBall.position.copy(sunLight.position).multiplyScalar(0.92);
+  sunBall.material.color.set(day ? 0xffe9b0 : 0xbfc8d8);
+  sunBall.scale.setScalar(day ? 1 : 0.55);
+  sunLight.intensity = day ? 0.35 + up*0.85 : 0.05;
+  hemi.intensity = day ? 0.45 + up*0.4 : 0.22;
+  fillLight.intensity = day ? 0.22 : 0.10;
+
+  // glass tinted by how the room sits inside its comfort band
+  const dev = S.rt < S.cl ? (S.rt-S.cl) : (S.rt > S.ch ? S.rt-S.ch : 0);
+  tmpC.copy(cOk);
+  if(dev < 0) tmpC.lerp(cCold, Math.min(1,-dev/1.5));
+  else if(dev > 0) tmpC.lerp(cHot, Math.min(1, dev/1.5));
+  const lit = day ? 0.05 : 0.30;
+  glass.forEach((m,k)=>{
+    m.color.copy(tmpC).lerp(new THREE.Color(0x6f8ba6), 0.45);
+    m.emissive.copy(tmpC).multiplyScalar(lit + (S.mode===1 ? 0.10 : 0));
+    m.opacity = day ? 0.72 : 0.84;
+  });
+
+  // panels brighten with generation
+  const pvFrac = PV_MAX ? S.pv/PV_MAX : 0;
+  const curt = S.cur > 0.05;
+  pvMats.forEach(m=>{
+    m.color.setRGB(0.09 + pvFrac*0.22, 0.15 + pvFrac*0.42, 0.24 + pvFrac*0.22);
+    m.emissive.setRGB(curt ? pvFrac*0.30 : 0, pvFrac*0.22, pvFrac*0.10);
+  });
+  const rf = PANEL_MAX ? S.meas/PANEL_MAX : 0;
+  refMat.color.setRGB(0.09 + rf*0.22, 0.15 + rf*0.42, 0.24 + rf*0.22);
+  refMat.emissive.setRGB(0, rf*0.26, rf*0.12);
+
+  // EHP units
+  const running = S.mode === 1 || S.mode === 2;
+  const pcFrac = PC_MAX ? S.pc/PC_MAX : 0;
+  ehp.forEach((u,k)=>{
+    u.body.color.set(running ? 0xb4bcc5 : 0x8d949c);
+    if(running && !reduced) u.fan.rotation.z += dt*(0.004 + pcFrac*0.022);
+  });
+
+  stepFlow(flowPv, PV_MAX ? S.pv/PV_MAX : 0, dt);
+  stepFlow(flowGi, GI_MAX ? S.gi/GI_MAX : 0, dt);
+}
+
+// ================= loop =================
+let pos = 0, rate = 240, playing = true, last = performance.now();
+function frame(now){
+  const dt = Math.min(120, now - last); last = now;
+  if(playing && !scrub){
+    pos += (rate * dt/1000) / STEP;
+    if(pos >= N-1) pos = 0;
+  }
+  sample(pos);
+  if(spin) theta += dt*0.000026;
+  placeCam();
+  updateScene(dt);
+  updateHUD();
+  renderer.render(scene, camera);
+  drawTrack();
+  requestAnimationFrame(frame);
+}
+
+$("play").addEventListener("click", e=>{
+  playing = !playing;
+  e.currentTarget.textContent = playing ? "일시정지" : "재생";
+});
+document.querySelectorAll(".sp").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    rate = +b.dataset.rate;
+    document.querySelectorAll(".sp").forEach(x=>x.setAttribute("aria-pressed", x===b ? "true":"false"));
+  });
+});
+addEventListener("keydown", e=>{
+  if(e.key === " "){ e.preventDefault(); $("play").click(); }
+  if(e.key === "ArrowRight") pos = Math.min(N-1, pos+4);
+  if(e.key === "ArrowLeft")  pos = Math.max(0, pos-4);
+});
+
+if(!hasRtm) $("mRtSub").dataset.nosensor = "1";
+applyTheme(); resize(); sample(0); updateHUD();
+requestAnimationFrame(frame);
+})();
+</script>
