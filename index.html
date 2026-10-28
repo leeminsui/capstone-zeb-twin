@@ -104,7 +104,7 @@ body[data-ch="1"] #fcPanel{display:block}
 #fcNums{display:flex;gap:14px;align-items:baseline}
 #fcNums span{font-size:10.5px;color:var(--muted)}
 #fcNums b{font-family:var(--font-num);font-size:15px;font-weight:600;margin-left:4px}
-#fcChart{width:100%;height:188px;display:block;margin-top:4px}
+#fcChart{width:100%;height:224px;display:block;margin-top:2px}
 #fcNote{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.45}
 
 /* ---- 3D labels ---- */
@@ -1234,14 +1234,16 @@ function drawComfort(w,h){
 // ================= results (chapter 4) =================
 // 전 구간을 한 번 집계해 두고 매 프레임 그리기만 한다.
 const resC=document.getElementById("results"), gx=resC.getContext("2d");
-const R=(function(){
-  const q=0.25, day=[], err=[];
+let R=null;
+function buildResults(){
+  const q=0.25, day=[], err=[], allErr=[];
   let Epv=0,Eld=0,Egi=0,Epc=0,Ecost=0,cool=0;
   const byReg={clear:[],mid:[],cloud:[]};
   const work=[], night=[];
   for(let i=0;i<N;i++){
     Epv+=D.pvs[i]*q; Eld+=D.ld[i]*q; Egi+=D.gi[i]*q; Epc+=D.pc[i]*q; Ecost+=D.cost[i]*q;
     if(D.mode[i]===1) cool++;
+    allErr.push(D.meas[i]-D.fc[i]);
     if(D.fc[i]>1||D.meas[i]>1){
       const e=D.meas[i]-D.fc[i]; day.push(i); err.push(e);
       (D.cc[i]<.35?byReg.clear:D.cc[i]<.7?byReg.mid:byReg.cloud).push(e);
@@ -1250,13 +1252,15 @@ const R=(function(){
     (hh>=8&&hh<20?work:night).push(i);
   }
   const mean=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
-  const mae=mean(err.map(Math.abs)), rmse=Math.sqrt(mean(err.map(e=>e*e)));
-  const mu=mean(day.map(i=>D.meas[i]));
-  const r2=1-err.reduce((s,e)=>s+e*e,0)/day.reduce((s,i)=>s+Math.pow(D.meas[i]-mu,2),0);
+  const mae=mean(allErr.map(Math.abs)), rmse=Math.sqrt(mean(allErr.map(e=>e*e)));
+  const mu=mean(D.meas.slice(0,N));
+  let ssr=0, sst=0;
+  for(let i=0;i<N;i++){ const e=D.meas[i]-D.fc[i]; ssr+=e*e; sst+=Math.pow(D.meas[i]-mu,2); }
+  const r2=1-ssr/sst;
   const cap=Math.max(MX("fc"),MX("meas"));
   const viol=g=>g.filter(i=>D.rt[i]>D.ch[i]+.05||D.rt[i]<D.cl[i]-.05).length;
   const exc=g=>mean(g.map(i=>Math.max(0,D.rt[i]-D.ch[i],D.cl[i]-D.rt[i])));
-  return {day,err,mae,rmse,bias:mean(err),r2,cap,
+  return {day,err,mae,rmse,bias:mean(allErr),r2,cap,
     nmae:mae/cap*100, nrmse:rmse/cap*100,
     reg:[["맑음",byReg.clear],["보통",byReg.mid],["흐림",byReg.cloud]]
          .map(r=>({k:r[0],n:r[1].length,mae:mean(r[1].map(Math.abs)),bias:mean(r[1])})),
@@ -1273,9 +1277,10 @@ const R=(function(){
       for(let k=d*96;k<(d+1)*96&&k<N;k++){pv+=D.pvs[k]*q;gi+=D.gi[k]*q;c+=D.cost[k]*q;pc+=D.pc[k]*q;}
       a.push({pv,gi,c,pc,cc:D.cc[d*96+48]});} return a;})()
   };
-})();
+}
 
 function drawResults(){
+  if(!R) R=buildResults();
   const w=resC.clientWidth, h=resC.clientHeight, dpr=Math.min(devicePixelRatio||1,2);
   if(!w||!h) return;
   if(resC.width!==w*dpr||resC.height!==h*dpr){ resC.width=w*dpr; resC.height=h*dpr; }
@@ -1311,7 +1316,7 @@ function drawResults(){
       gx.fillText(k[1], x+i*kw, y+34);
     });
     gx.fillStyle=MU; gx.font='9.5px "IBM Plex Sans KR",sans-serif';
-    gx.fillText("낮시간 "+R.day.length+"스텝 · 편향 "+(R.bias>=0?"+":"")+R.bias.toFixed(2)+" W"
+    gx.fillText("전 구간 "+N+"스텝 · 편향 "+(R.bias>=0?"+":"")+R.bias.toFixed(2)+" W"
                 +" (모델이 실측보다 높게 예측)", x, y+50);
 
     // 산점도: 예측 vs 실측
@@ -1483,25 +1488,33 @@ function drawResults(){
 // ================= forecast chart =================
 const fcC=document.getElementById("fcChart"), fx=fcC.getContext("2d");
 const PAST_N=12;                              // 과거 3시간
+const CHART_H=224;
 const YMAX=Math.ceil(Math.max(PANEL_MAX,HZ_MAX)/10)*10;
 function drawChart(){
-  const w=fcC.clientWidth, h=188, dpr=Math.min(devicePixelRatio||1,2);
+  const w=fcC.clientWidth, h=CHART_H, dpr=Math.min(devicePixelRatio||1,2);
   if(!w) return;
   fcC.width=w*dpr; fcC.height=h*dpr; fx.setTransform(dpr,0,0,dpr,0,0);
   fx.clearRect(0,0,w,h);
-  const L=38, R=8, T=10, B=20, pw=w-L-R, phh=h-T-B;
+  const L=40, R=10, T=22, B=22, pw=w-L-R, phh=h-T-B;
   const i=S.i, span=PAST_N+HZ;                       // 3시간 과거 + 6시간 예측
   const X=k=>L+(k/span)*pw;                          // k=0 → i-PAST_N
   const Y=v=>T+phh-(Math.min(v,YMAX)/YMAX)*phh;
   const line=cssv("--line"), muted=cssv("--muted"), fg=cssv("--fg"), pv=cssv("--pv");
+  const slab=cssv("--bg");
+
+  // 예측 구간 배경 — 과거와 미래를 바탕색으로 가른다
+  fx.fillStyle=pv; fx.globalAlpha=.05;
+  fx.fillRect(X(PAST_N),T,X(span)-X(PAST_N),phh); fx.globalAlpha=1;
 
   // 눈금
   fx.strokeStyle=line; fx.fillStyle=muted; fx.lineWidth=1;
   fx.font='9px "IBM Plex Mono", monospace'; fx.textAlign="right"; fx.textBaseline="middle";
   for(let g=0;g<=4;g++){
     const v=YMAX*g/4, y=Y(v);
+    fx.globalAlpha=g?.55:1;
     fx.beginPath(); fx.moveTo(L,y+.5); fx.lineTo(w-R,y+.5); fx.stroke();
-    fx.fillText(v.toFixed(0), L-6, y);
+    fx.globalAlpha=1;
+    fx.fillText(v.toFixed(0), L-7, y);
   }
 
   // 시각 눈금 (정시마다)
@@ -1511,51 +1524,80 @@ function drawChart(){
     if(idx<0||idx>=N) continue;
     const d=new Date(T0.getTime()+idx*STEP*60000);
     if(d.getMinutes()!==0 || d.getHours()%2) continue;
-    fx.strokeStyle=line; fx.beginPath();
-    fx.moveTo(X(k)+.5,T); fx.lineTo(X(k)+.5,T+phh); fx.stroke();
+    fx.strokeStyle=line; fx.globalAlpha=.55; fx.beginPath();
+    fx.moveTo(X(k)+.5,T); fx.lineTo(X(k)+.5,T+phh); fx.stroke(); fx.globalAlpha=1;
     fx.fillStyle=muted; fx.fillText(String(d.getHours()).padStart(2,"0"), X(k), T+phh+4);
   }
 
   // 갱신되기 전 예측들 — 호라이즌이 밀리는 모습
+  fx.setLineDash([2,3]);
   [8,4].forEach((back,n)=>{
     const row=D.hz[Math.max(0,i-back)]; if(!row) return;
-    fx.strokeStyle=pv; fx.globalAlpha=.20+n*.12; fx.lineWidth=1;
+    fx.strokeStyle=pv; fx.globalAlpha=.30+n*.16; fx.lineWidth=1.3;
     fx.beginPath();
     for(let k=0;k<HZ;k++){
       const xk=PAST_N-back+1+k; if(xk<0) continue;
       const x=X(xk), y=Y(row[k]/10);
-      xk===Math.max(0,back-PAST_N-1)||k===0?fx.moveTo(x,y):fx.lineTo(x,y);
+      k===0?fx.moveTo(x,y):fx.lineTo(x,y);
     }
     fx.stroke(); fx.globalAlpha=1;
   });
+  fx.setLineDash([]);
 
   // 현재 예측 (면적 + 선)
   const cur=D.hz[i]||[];
   fx.beginPath(); fx.moveTo(X(PAST_N),Y(0));
   for(let k=0;k<HZ;k++) fx.lineTo(X(PAST_N+k),Y(cur[k]/10));
   fx.lineTo(X(PAST_N+HZ-1),Y(0)); fx.closePath();
-  fx.fillStyle=pv; fx.globalAlpha=.16; fx.fill(); fx.globalAlpha=1;
+  const ag=fx.createLinearGradient(0,T,0,T+phh);
+  ag.addColorStop(0,pv); ag.addColorStop(1,"transparent");
+  fx.fillStyle=ag; fx.globalAlpha=.30; fx.fill(); fx.globalAlpha=1;
+  fx.lineJoin="round"; fx.lineCap="round";
+  fx.strokeStyle=slab; fx.lineWidth=5.0;            // 바탕과 분리하는 외곽선
   fx.beginPath();
   for(let k=0;k<HZ;k++){ const x=X(PAST_N+k),y=Y(cur[k]/10); k?fx.lineTo(x,y):fx.moveTo(x,y); }
-  fx.strokeStyle=pv; fx.lineWidth=1.8; fx.stroke();
+  fx.stroke();
+  fx.strokeStyle=pv; fx.lineWidth=2.6;
+  fx.beginPath();
+  for(let k=0;k<HZ;k++){ const x=X(PAST_N+k),y=Y(cur[k]/10); k?fx.lineTo(x,y):fx.moveTo(x,y); }
+  fx.stroke();
+  fx.fillStyle=pv;                                   // 6시간 뒤 끝점
+  fx.beginPath(); fx.arc(X(span-1),Y(cur[HZ-1]/10),3.2,0,7); fx.fill();
 
   // 실측 (과거)
-  fx.beginPath();
-  for(let k=0;k<=PAST_N;k++){
-    const idx=i-PAST_N+k; if(idx<0) continue;
-    const x=X(k), y=Y(D.meas[idx]);
-    k?fx.lineTo(x,y):fx.moveTo(x,y);
-  }
-  fx.strokeStyle=fg; fx.lineWidth=1.6; fx.stroke();
+  const mpath=()=>{ fx.beginPath();
+    for(let k=0;k<=PAST_N;k++){
+      const idx=i-PAST_N+k; if(idx<0) continue;
+      const x=X(k), y=Y(D.meas[idx]);
+      k?fx.lineTo(x,y):fx.moveTo(x,y);
+    } };
+  fx.strokeStyle=slab; fx.lineWidth=4.6; mpath(); fx.stroke();
+  fx.strokeStyle=fg; fx.lineWidth=2.4; mpath(); fx.stroke();
+  fx.fillStyle=fg;
+  fx.beginPath(); fx.arc(X(PAST_N),Y(D.meas[i]),3.4,0,7); fx.fill();
+  fx.fillStyle=slab;
+  fx.beginPath(); fx.arc(X(PAST_N),Y(D.meas[i]),1.4,0,7); fx.fill();
 
   // now
-  fx.strokeStyle=fg; fx.globalAlpha=.55; fx.setLineDash([3,3]); fx.lineWidth=1;
-  fx.beginPath(); fx.moveTo(X(PAST_N),T); fx.lineTo(X(PAST_N),T+phh); fx.stroke();
+  fx.strokeStyle=fg; fx.globalAlpha=.5; fx.setLineDash([3,3]); fx.lineWidth=1.2;
+  fx.beginPath(); fx.moveTo(X(PAST_N),T-6); fx.lineTo(X(PAST_N),T+phh); fx.stroke();
   fx.setLineDash([]); fx.globalAlpha=1;
-  fx.fillStyle=fg; fx.textAlign="left"; fx.textBaseline="top";
-  fx.fillText("now", X(PAST_N)+4, T+1);
-  fx.fillStyle=muted; fx.textAlign="right";
-  fx.fillText("+6h", w-R-2, T+1);
+
+  // 범례
+  fx.textBaseline="middle"; fx.textAlign="left";
+  fx.font='600 9.5px "IBM Plex Sans KR", sans-serif';
+  let lx=L;
+  const key=(col,lab,dash)=>{
+    fx.strokeStyle=col; fx.lineWidth=2.4; fx.setLineDash(dash||[]);
+    fx.beginPath(); fx.moveTo(lx,T-11); fx.lineTo(lx+14,T-11); fx.stroke();
+    fx.setLineDash([]);
+    fx.fillStyle=muted; fx.fillText(lab, lx+18, T-10);
+    lx += 18 + fx.measureText(lab).width + 14;
+  };
+  key(fg,"실측"); key(pv,"현재 예측"); key(pv,"이전 예측",[2,3]);
+  fx.textAlign="right"; fx.fillStyle=muted;
+  fx.font='9px "IBM Plex Mono", monospace';
+  fx.fillText("now → +6h", w-R, T-10);
 }
 
 // ================= HUD =================
