@@ -246,6 +246,28 @@ def reduced_motion(B):
     pg.clean(); pg.close()
 
 
+# ───────────────────────── Task 6 ─────────────────────────
+@check
+def view3(B):
+    pg = Page(B, "view=3&paused=1&i=337")
+    pg.wait(600)
+    assert "구조는 추정" in pg.text("#view .ph")
+    assert pg.count("#alg [data-cell='forecast']") == 24 and pg.count("#alg [data-cell='plan']") == 24
+    assert pg.count("#alg [data-ctrl]") == 2 and pg.attr("#alg [data-ctrl='mpc']", "data-active") == "true"
+    assert pg.attr("#alg [data-ctrl='rl']", "data-active") == "false"
+    assert "Transformer" not in pg.text("body")
+    t = pg.evaluate("document.querySelector('#alg').textContent")
+    assert "이후 6시간 실제 운전값" in t and "× 3600" in t
+    bad = pg.evaluate(TEXT_OVERLAP_JS, "#alg"); assert bad == [], bad[:5]
+    assert pg.count("#alg .hot") >= 1                      # 15분 주기 단계에 맞춘 강조
+    assert pg.min_font() >= 13, pg.min_font()
+    pg.shot("view3")
+    pg.evaluate("ZEB.algoSpec.confirmed = true; ZEB.shell.setView(1); ZEB.shell.setView(3)")
+    assert "구조는 추정" not in pg.text("#view .ph")
+    pg.set_viewport(1920, 1080); assert pg.min_font() >= 13 and pg.evaluate(TEXT_OVERLAP_JS, "#alg") == []
+    pg.clean(); pg.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
