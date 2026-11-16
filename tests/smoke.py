@@ -128,6 +128,49 @@ def shell_static(B):
     pg.close()
 
 
+# ───────────────────────── Task 3 ─────────────────────────
+@check
+def shell_behavior(B):
+    pg = Page(B, "paused=1&i=337")
+    assert pg.text("#hdr-time") == "12:15:00" and pg.text("#hdr-date") == "2026-10-02"
+    assert pg.attr("body", "data-view") == "1"
+    pg.press("2"); assert pg.attr("body", "data-view") == "2"
+    assert pg.attr("#menu button[data-view='2']", "aria-current") == "true"
+    pg.press("4"); assert not pg.visible("#right")
+    pg.press("1"); assert pg.visible("#right")
+    pg.press("ArrowRight"); assert pg.text("#hdr-time") == "13:15:00"
+    pg.press("Shift+ArrowLeft"); assert pg.text("#hdr-date") == "2026-10-01"
+    pg.press("Home"); assert pg.text("#hdr-time") == "12:00:00" and pg.text("#hdr-date") == "2026-10-02"
+    pg.press("]"); assert "4시간/초" in pg.text("#hdr-speed")
+    pg.press("["); pg.press("["); assert "15분/초" in pg.text("#hdr-speed")
+    assert pg.count("#events li") >= 1 and pg.count("#cycle li.r") == 1
+    assert pg.text("#btn-play") == "재생"
+    pg.press("Space"); assert pg.text("#btn-play") == "일시정지"
+    t0 = pg.text("#hdr-time"); pg.wait(1300); assert pg.text("#hdr-time") != t0
+    pg.p.click("#menu button[data-view='3']"); assert pg.attr("body", "data-view") == "3"
+    assert pg.min_font() >= 13, pg.min_font()
+    pg.clean(); pg.close()
+
+
+@check
+def carousel(B):
+    pg = Page(B, "idle=2&dwell=1")
+    pg.wait(3500)
+    assert "자동 순환" in pg.text("#hdr-speed") and pg.attr("body", "data-view") != "1"
+    pg.press("1")
+    assert "자동 순환" not in pg.text("#hdr-speed") and pg.attr("body", "data-view") == "1"
+    pg.clean(); pg.close()
+
+
+@check
+def resize(B):
+    pg = Page(B, "paused=1&i=337")
+    pg.set_viewport(1920, 1080); assert pg.no_overflow() and not pg.visible("#narrow")
+    pg.set_viewport(1200, 800); assert pg.visible("#narrow") and not pg.visible("#hdr")
+    pg.set_viewport(1440, 900); assert not pg.visible("#narrow") and pg.visible("#hdr") and pg.no_overflow()
+    pg.clean(); pg.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
