@@ -197,6 +197,55 @@ def view1_night(B):
     pg.shot("view1_night"); pg.clean(); pg.close()
 
 
+# ───────────────────────── Task 5 ─────────────────────────
+ROOM_ROWS = ["실내온도", "쾌적 범위", "외기온도", "EHP 운전", "EHP 소비전력", "건물 부하", "태양광 발전", "요금 단가"]
+
+
+@check
+def view2(B):
+    pg = Page(B, "view=2&paused=1&i=337")
+    pg.wait(1200)
+    assert pg.texts("#meas td:first-child") == ROOM_ROWS
+    assert pg.text("#meas tr:nth-child(1) .st") == "주의"
+    assert pg.count("#view .tag.cool") == 3, pg.count("#view .tag.cool")
+    assert "54.9 kW" in pg.text("#summary"), pg.text("#summary")
+    host = pg.box("#view .stage")
+    for b in pg.boxes("#view .tag"): assert inside(b, host), (b, host)
+    assert pg.evaluate(GL_NONBLANK_JS, "#view .stage canvas") > 8
+    assert pg.min_font() >= 13, pg.min_font()
+    pg.shot("view2"); pg.clean(); pg.close()
+
+
+@check
+def view2_night(B):
+    pg = Page(B, "view=2&paused=1&i=392")
+    pg.wait(1200)
+    assert pg.count("#view .tag.cool") == 0
+    assert pg.evaluate("ZEB.sceneRoom.debug.peopleVisible") == 0
+    assert "NaN" not in pg.text("body")
+    pg.shot("view2_night"); pg.clean(); pg.close()
+
+
+@check
+def switching(B):
+    pg = Page(B, "view=1&paused=1&i=337")
+    for _ in range(20):
+        pg.press("2"); pg.press("1")
+    assert pg.evaluate("ZEB.gl.contexts") == 1
+    assert pg.count("#view .tags") == 1 and pg.count("#view .tag") == 3
+    pg.clean(); pg.close()
+
+
+@check
+def reduced_motion(B):
+    pg = Page(B, "view=2&i=337", reduced=True)
+    pg.wait(600)
+    p0 = pg.evaluate("ZEB.sceneRoom.debug.particlePhase"); pg.wait(700)
+    assert pg.evaluate("ZEB.sceneRoom.debug.particlePhase") == p0
+    t0 = pg.text("#hdr-time"); pg.wait(1300); assert pg.text("#hdr-time") != t0
+    pg.clean(); pg.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")

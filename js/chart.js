@@ -85,7 +85,7 @@
     g.textAlign = "right";
     for (let v = lo; v <= hi; v++) {
       g.strokeStyle = c.bd2; g.lineWidth = 1; g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(w - R, Y(v) + .5); g.stroke();
-      if ((hi - lo) <= 6 || (v - lo) % 2 === 0) { g.fillStyle = c.dim; g.fillText(String(v), L - 8, Y(v)); }
+      if ((hi - lo) <= 6 || (v - lo) % 2 === 0) { g.fillStyle = c.dim; g.fillText(v === hi ? v + "°C" : String(v), L - 8, Y(v)); }
     }
     hourTicks(g, c, i - n, n, X, T, T + ph, 3);
     g.fillStyle = "rgba(61,220,132,.14)"; g.beginPath();
@@ -102,7 +102,6 @@
     }
     g.strokeStyle = c.bd; g.lineWidth = 1; g.beginPath(); g.moveTo(L, T2 + h2 + .5); g.lineTo(w - R, T2 + h2 + .5); g.stroke();
     g.textAlign = "right"; g.fillStyle = c.dim; g.fillText("kW", L - 8, T2 + h2 / 2);
-    g.fillText("°C", L - 8, T - 12);
     legend(g, c, L, 14, [[c.tx, "실내온도"], ["rgba(61,220,132,.55)", "쾌적 범위"], [c.cool, "냉방 전력 (최대 " + pm.toFixed(0) + " kW)"]]);
   }
 
