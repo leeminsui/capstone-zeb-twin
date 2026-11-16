@@ -12,3 +12,5 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+.superpowers/
+tests/shots/
