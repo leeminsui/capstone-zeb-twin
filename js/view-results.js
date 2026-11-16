@@ -73,7 +73,7 @@
     side.appendChild(h("div", { class: "bias" }, R.regimes.map(g =>
       '<span>' + g.name + '</span><i><em style="width:' + Math.max(1.5, Math.abs(g.bias) / bm * 100).toFixed(1) + '%"></em></i><b>' + signed(g.bias) + ' W</b>').join("")));
     const worst = R.regimes.slice().sort((x, y) => x.bias - y.bias)[0];
-    if (worst.bias < -1) side.appendChild(h("p", { class: "note" }, worst.name + " 날에 실제보다 가장 낮게 예측했습니다. 음수는 실제보다 낮게 예측했다는 뜻입니다."));
+    if (worst.bias < -1) side.appendChild(h("p", { class: "note" }, worst.name + " 날에 실제보다 가장 높게 예측했습니다. 값은 실측에서 예측을 뺀 것입니다."));
     side.appendChild(h("p", { class: "note" }, "점이 점선에 가까울수록 정확합니다. 흰 점은 지금 재생 중인 시각입니다."));
     row.appendChild(side); ab.appendChild(row); a.body.appendChild(ab); root.appendChild(a.root);
 

@@ -277,6 +277,7 @@ def view4(B):
     t = pg.text("#center")
     for s in ["0.854", "3.95", "5.8", "94", "370", "346", "64,839", "21.6", "153"]: assert s in t, s
     assert "쾌적" not in t                                   # showComfort=false
+    assert "높게 예측" in t and "낮게 예측" not in t          # 치우침 음수 = 실측이 예측보다 낮음 = 과대예측
     assert pg.count("#res-waffle rect") == 370 and pg.count("#res-waffle rect.on") == 346
     assert pg.count("#res-days li") == 14 and pg.count("#res-days li.today") == 1
     assert "10/2" in pg.text("#res-days li.today")
@@ -295,6 +296,33 @@ def view4(B):
     pg.set_viewport(1920, 1080); assert pg.no_overflow() and pg.min_font() >= 13
     pg.shot("view4-1920")
     pg.clean(); pg.close()
+
+
+# ───────────────────────── Task 8 ─────────────────────────
+@check
+def full_run(B):
+    pg = Page(B, "view=1&i=0")
+    pg.press("]"); pg.press("]")
+    assert "12시간" in pg.text("#hdr-speed"), pg.text("#hdr-speed")
+    seen = set()
+    for _ in range(45):                                     # 소프트웨어 렌더링에서는 프레임이 느려 28초보다 오래 걸린다
+        pg.wait(2000); seen.add(pg.text("#hdr-date"))
+        if "2026-10-12" in seen and pg.text("#hdr-date") <= "2026-09-30": break
+    assert "2026-10-12" in seen and pg.text("#hdr-date") in ("2026-09-29", "2026-09-30"), (sorted(seen)[-1], pg.text("#hdr-date"))
+    pg.clean(); pg.close()
+
+
+@check
+def all_screens(B):
+    for w, h in ((1440, 900), (1920, 1080)):
+        pg = Page(B, "view=1&paused=1&i=337", w=w, h=h)
+        for v in (1, 2, 3, 4):
+            pg.press(str(v)); pg.wait(900)
+            assert pg.no_overflow(), (v, w)
+            assert pg.min_font() >= 13, (v, w, pg.min_font())
+            assert inside(pg.box("#view"), pg.box("#center")), (v, w)
+            pg.shot(f"final-{v}-{w}")
+        pg.clean(); pg.close()
 
 
 def main():
