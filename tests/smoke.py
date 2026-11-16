@@ -171,6 +171,32 @@ def resize(B):
     pg.clean(); pg.close()
 
 
+# ───────────────────────── Task 4 ─────────────────────────
+@check
+def view1(B):
+    pg = Page(B, "view=1&paused=1&i=337")
+    pg.wait(1200)
+    assert pg.count("#view canvas") >= 2
+    assert pg.texts("#meas td:first-child") == ["일사량", "구름량", "외기온도", "15분 뒤 예측", "실측", "예측 오차", "건물 환산 발전", "계통 수전"]
+    assert "2.6 W" in pg.text("#summary"), pg.text("#summary")
+    tags = pg.boxes("#view .tag"); assert len(tags) == 3, len(tags)
+    host = pg.box("#view .stage")
+    for b in tags: assert inside(b, host), (b, host)
+    assert pg.evaluate(GL_NONBLANK_JS, "#view .stage canvas") > 8
+    assert pg.min_font() >= 13, pg.min_font()
+    pg.shot("view1"); pg.clean(); pg.close()
+
+
+@check
+def view1_night(B):
+    pg = Page(B, "view=1&paused=1&i=392")
+    pg.wait(1200)
+    body = pg.text("body")
+    assert "NaN" not in body and "Infinity" not in body
+    assert "발전이 없습니다" in pg.text("#summary")
+    pg.shot("view1_night"); pg.clean(); pg.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
