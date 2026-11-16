@@ -143,6 +143,9 @@ def shell_behavior(B):
     pg.press("Home"); assert pg.text("#hdr-time") == "12:00:00" and pg.text("#hdr-date") == "2026-10-02"
     pg.press("]"); assert "4시간/초" in pg.text("#hdr-speed")
     pg.press("["); pg.press("["); assert "15분/초" in pg.text("#hdr-speed")
+    pg.press("["); assert "5분/초" in pg.text("#hdr-speed")
+    pg.press("["); assert "1분/초" in pg.text("#hdr-speed")
+    pg.press("["); assert "1분/초" in pg.text("#hdr-speed")             # 더 내려가지 않는다
     assert pg.count("#events li") >= 1 and pg.count("#cycle li.r") == 1
     assert pg.text("#btn-play") == "재생"
     pg.press("Space"); assert pg.text("#btn-play") == "일시정지"

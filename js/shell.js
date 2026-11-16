@@ -4,8 +4,8 @@
   "use strict";
   const ZEB = window.ZEB, D = ZEB.data;
   const $ = id => document.getElementById(id);
-  const RATES = [15, 60, 240, 720];                      // 분/초
-  const RATE_LABEL = { 15: "15분/초", 60: "1시간/초", 240: "4시간/초", 720: "12시간/초" };
+  const RATES = [1, 5, 15, 60, 240, 720];                     // 분/초
+  const RATE_LABEL = { 1: "1분/초", 5: "5분/초", 15: "15분/초", 60: "1시간/초", 240: "4시간/초", 720: "12시간/초" };
   const VIEW_NAMES = { 1: "발전 예측", 2: "실내 제어", 3: "알고리즘", 4: "실험 결과" };
 
   const state = { pos: ZEB.config.homeIndex, rate: 60, playing: true, view: 1, carousel: false };
