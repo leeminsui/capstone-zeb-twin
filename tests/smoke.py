@@ -268,6 +268,35 @@ def view3(B):
     pg.clean(); pg.close()
 
 
+# ───────────────────────── Task 7 ─────────────────────────
+@check
+def view4(B):
+    pg = Page(B, "view=4&paused=1&i=337")
+    pg.wait(500)
+    assert not pg.visible("#right")
+    t = pg.text("#center")
+    for s in ["0.854", "3.95", "5.8", "94", "370", "346", "64,839", "21.6", "153"]: assert s in t, s
+    assert "쾌적" not in t                                   # showComfort=false
+    assert pg.count("#res-waffle rect") == 370 and pg.count("#res-waffle rect.on") == 346
+    assert pg.count("#res-days li") == 14 and pg.count("#res-days li.today") == 1
+    assert "10/2" in pg.text("#res-days li.today")
+    assert pg.count("#res-scatter circle.pt") == 648 and pg.count("#res-scatter circle.now") == 1
+    assert pg.font_px("#res-r2") >= 56 and pg.font_px("#res-share") >= 56
+    assert pg.no_overflow() and pg.min_font() >= 13, pg.min_font()
+    v = pg.box("#view")
+    for sel in ["#res-forecast", "#res-control", "#res-days"]:
+        b = pg.box(sel); assert inside(b, v), sel
+        assert pg.evaluate("s => { const e = document.querySelector(s); return e.scrollHeight <= e.clientHeight + 1 && e.scrollWidth <= e.clientWidth + 1 }", sel), sel
+    pg.shot("view4")
+    pg.press("Shift+ArrowRight"); assert "10/3" in pg.text("#res-days li.today")
+    pg.evaluate("ZEB.config.showComfort = true; ZEB.shell.setView(1); ZEB.shell.setView(4)"); pg.wait(400)
+    assert "쾌적" in pg.text("#center") and "36" in pg.text("#res-control")
+    pg.evaluate("ZEB.config.showComfort = false; ZEB.shell.setView(1); ZEB.shell.setView(4)"); pg.wait(400)
+    pg.set_viewport(1920, 1080); assert pg.no_overflow() and pg.min_font() >= 13
+    pg.shot("view4-1920")
+    pg.clean(); pg.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
